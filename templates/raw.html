@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>完整源榜单 · 热榜雷达台</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="raw-page">
+  <div class="paper-noise"></div>
+  <header class="masthead compact">
+    <div class="subnav"><a class="back-link" href="{{ url_for('index') }}">← 返回雷达台</a><a href="{{ url_for('settings_page') }}">⚙ 分析设置</a></div>
+    <h1>完整源榜单</h1>
+    <p>第 {{ run_id or '—' }} 次采集 · 未经关键词或 AI 过滤</p>
+  </header>
+  <main class="raw-grid">
+    {% for source_name, items in grouped.items() %}
+      <section class="source-column">
+        <div class="source-title"><h2>{{ source_name }}</h2><span>{{ items|length }}</span></div>
+        <ol>
+          {% for item in items %}
+            <li><b>{{ item.rank }}</b><a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>{% if item.hot_value %}<small>{{ item.hot_value }}</small>{% endif %}</li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% else %}
+      <div class="empty-state"><span>∅</span><p>还没有采集记录</p></div>
+    {% endfor %}
+  </main>
+</body>
+</html>

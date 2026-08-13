@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>写文历史 · 热榜雷达台</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="paper-noise"></div>
+  <header class="masthead compact article-history-masthead">
+    <div class="edition">AI ARTICLE ARCHIVE / LOCAL DRAFTS</div>
+    <div class="subnav">
+      <a class="back-link" href="{{ url_for('index') }}">← 返回雷达台</a>
+      <span>共 {{ articles|length }} 篇</span>
+    </div>
+    <p class="eyebrow">本机 SQLite 写作档案</p>
+    <h1>写文历史</h1>
+    <p>按生成时间倒序保存。展开可查看、复制之前写过的完整文章。</p>
+  </header>
+
+  <main class="article-history-main">
+    <div class="article-history-list">
+      {% for article in articles %}
+        <article class="history-article">
+          <div class="history-article-index">{{ '%02d'|format(loop.index) }}</div>
+          <div class="history-article-copy">
+            <div class="history-article-meta">
+              <span>{{ article.created_at|replace('T', ' ') }}</span>
+              <span>{{ article.model }}</span>
+              <span>{{ '深度长文' if article.article_type == 'long' else '头条文章' }}</span>
+              <span>话题：{{ article.topic_title }}</span>
+            </div>
+            <h2>{{ article.article_title }}</h2>
+            <details>
+              <summary>查看全文</summary>
+              <pre id="history-article-{{ article.id }}">{{ article.content }}</pre>
+            </details>
+          </div>
+          <button type="button" class="history-copy-button" data-copy-target="history-article-{{ article.id }}">复制全文</button>
+        </article>
+      {% else %}
+        <div class="empty-state"><span>∅</span><p>还没有生成过文章</p></div>
+      {% endfor %}
+    </div>
+  </main>
+  <script>
+    document.querySelectorAll('.history-copy-button').forEach(button => {
+      button.addEventListener('click', async () => {
+        const content = document.getElementById(button.dataset.copyTarget).textContent;
+        await navigator.clipboard.writeText(content);
+        button.textContent = '已复制';
+        setTimeout(() => { button.textContent = '复制全文'; }, 1500);
+      });
+    });
+  </script>
+</body>
+</html>

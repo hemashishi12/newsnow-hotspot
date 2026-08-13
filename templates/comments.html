@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ topic.canonical_title }} · 评论样本</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="paper-noise"></div>
+  <header class="masthead compact comments-masthead">
+    <div class="edition">PUBLIC VOICE / MEDIACRAWLER SAMPLE</div>
+    <div class="subnav">
+      <a class="back-link" href="{{ url_for('index') }}">← 返回雷达台</a>
+      <a href="{{ url_for('logs_page') }}">运行日志 →</a>
+    </div>
+    <p class="eyebrow">话题评论样本</p>
+    <h1>{{ topic.canonical_title }}</h1>
+    {% if topic.summary %}<p>{{ topic.summary }}</p>{% endif %}
+  </header>
+
+  <main class="comments-main">
+    <section class="comment-control">
+      <div>
+        <span class="section-number">00</span>
+        <div><h2>手动采集</h2><p>并行搜索设置中选定的平台；每个平台3篇帖子，每篇最多30条一级评论。</p></div>
+      </div>
+      <form method="post" action="{{ url_for('trigger_topic_comments', topic_id=topic.id) }}">
+        <label><span>SEARCH KEYWORD</span><input name="keyword" value="{{ topic.canonical_title }}" required></label>
+        <button type="submit" {% if active %}disabled{% endif %}>{{ '任务进行中…' if active else '开始采集：' ~ (selected_platform_names|join(' + ')) }}</button>
+      </form>
+      <aside>程序会自动打开独立的 Chrome。登录、扫码或验证码请在该窗口手动完成；最长等待10分钟，页面会自动刷新任务状态。</aside>
+    </section>
+
+    <section class="job-board">
+      <div class="section-head compact-head"><span class="section-number">01</span><div><h2>任务队列</h2><p>最新任务在前，不同平台最多 4 路并行采集。</p></div></div>
+      <div class="job-grid">
+        {% for job in jobs %}
+          <article class="job-card status-{{ job.status }}">
+            <span>{{ platform_names.get(job.platform, job.platform) }}</span>
+            <b>{{ job.status|upper }}</b>
+            <p>{{ job.keyword }}</p>
+            <small>#{{ job.id }} · {{ job.post_count }} 帖 / {{ job.comment_count }} 评</small>
+            {% if job.error %}<em>{{ job.error }}</em>{% endif %}
+          </article>
+        {% else %}<div class="comment-empty">尚未发起评论采集</div>{% endfor %}
+      </div>
+    </section>
+
+    <div class="comment-results-grid">
+      <section class="posts-panel">
+        <div class="section-head compact-head"><span class="section-number">02</span><div><h2>相关帖子</h2><p>已导入 {{ posts|length }} 篇</p></div></div>
+        <div class="social-post-list">
+          {% for post in posts %}
+            <article>
+              <span class="social-platform platform-{{ post.platform }}">{{ platform_names.get(post.platform, post.platform) }}</span>
+              <h3><a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">{{ post.title or '(无标题)' }}</a></h3>
+              <p>{{ post.author }} · 点赞 {{ post.like_count }} · 评论 {{ post.comment_count }}</p>
+            </article>
+          {% else %}<div class="comment-empty">任务完成后，相关帖子会显示在这里。</div>{% endfor %}
+        </div>
+      </section>
+
+      <section class="comments-panel">
+        <div class="section-head compact-head"><span class="section-number">03</span><div><h2>高赞评论样本</h2><p>按本次抓取样本中的点赞数排序，共 {{ comments|length }} 条。</p></div></div>
+        <div class="social-comment-list">
+          {% for comment in comments %}
+            <article>
+              <div><span class="social-platform platform-{{ comment.platform }}">{{ platform_names.get(comment.platform, comment.platform) }}</span><b>♥ {{ comment.like_count }}</b></div>
+              <blockquote>{{ comment.content }}</blockquote>
+              <p>{{ comment.author }}{% if comment.post_url %} · <a href="{{ comment.post_url }}" target="_blank" rel="noopener noreferrer">来源帖子</a>{% endif %}</p>
+            </article>
+          {% else %}<div class="comment-empty">暂无已导入的一级评论。</div>{% endfor %}
+        </div>
+      </section>
+    </div>
+
+    <section class="crawler-log-panel">
+      <div class="section-head compact-head"><span class="section-number">04</span><div><h2>MediaCrawler 日志</h2><p>最近日志在顶部</p></div></div>
+      <ol>
+        {% for log in logs %}
+          <li class="level-{{ log.level }}"><time>{{ log.created_at.replace('T',' ') }}</time><b>{{ platform_names.get(log.platform, log.platform) }}</b><p>{{ log.message }}</p></li>
+        {% else %}<li class="comment-empty">暂无日志</li>{% endfor %}
+      </ol>
+    </section>
+  </main>
+  {% if active %}<script>setTimeout(() => location.reload(), 3000);</script>{% endif %}
+</body>
+</html>

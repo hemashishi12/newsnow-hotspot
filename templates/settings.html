@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>分析设置 · 热榜雷达台</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="settings-page">
+  <div class="paper-noise"></div>
+  <header class="masthead compact settings-masthead">
+    <div class="subnav"><a class="back-link" href="{{ url_for('index') }}">← 返回雷达台</a><a href="{{ url_for('raw_lists') }}">完整源榜单 →</a></div>
+    <p class="eyebrow">CONTROL DESK / READ-ONLY MATH</p>
+    <h1>分析设置</h1>
+    <p>选择要采集和交给 AI 做跨平台事件聚类的平台。未勾选平台将不会发起采集请求。</p>
+  </header>
+
+  <main class="settings-main">
+    {% set saved_messages = {
+      'weights': '总榜权重已归一化并立即生效。',
+      'interval': '采集间隔已更新，后台定时任务已重新排期。',
+      'comments': '热评采集平台已更新，下一次手动或自动采集立即生效。',
+      'prompt': '文章提示词已更新，下一次生成立即生效。',
+      'long_prompt': '深度长文提示词已更新，下一次生成立即生效。',
+      'ai': 'AI 连接已更新，下一次调用立即生效。',
+      'web_search': 'AI 联网设置已更新，下一次文章生成立即生效。',
+      'platforms': '平台选择将从下一轮分析开始生效。'
+    } %}
+    {% if saved %}<aside class="notice saved"><b>设置已保存</b><span>{{ saved_messages.get(saved, '设置已更新。') }}</span></aside>{% endif %}
+    {% if error %}<aside class="notice danger"><b>无法保存</b><span>{{ error }}</span></aside>{% endif %}
+
+    <section class="settings-block">
+      <div class="settings-heading">
+        <div><span class="section-number">01</span><h2>采集与分析平台</h2></div>
+        <p>至少选择2个平台。勾选范围同时决定 NewsNow 采集源和送入 AI 的榜单；平台权重仍来自 config.yaml。</p>
+      </div>
+      <form method="post" class="platform-form">
+        <input type="hidden" name="form_action" value="platforms">
+        <div class="platform-selector">
+          {% for source in sources %}
+            <label class="platform-option">
+              <input type="checkbox" name="analysis_sources" value="{{ source.id }}" {% if source.id in selected_ids %}checked{% endif %}>
+              <span class="checkmark" aria-hidden="true"></span>
+              <span class="platform-option-copy"><b>{{ source.name }}</b><small>{{ source.id }}</small></span>
+              <em>× {{ '%.2f'|format(source.weight) }}</em>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="form-footer">
+          <span id="selected-count">已选择 {{ selected_ids|length }} 个平台</span>
+          <button type="submit">保存采集平台</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="settings-block frequency-settings-block">
+      <div class="settings-heading">
+        <div><span class="section-number">02</span><h2>自动采集频率</h2></div>
+        <p>设置后台两次自动采集之间的间隔。保存后立即从当前时间重新排期；正在执行的采集不会被中断。</p>
+      </div>
+      <form method="post" class="frequency-form">
+        <input type="hidden" name="form_action" value="collection_interval">
+        <label for="interval-minutes">
+          <span>COLLECTION INTERVAL</span>
+          <div><input id="interval-minutes" type="number" name="interval_minutes" min="1" max="1440" step="1" value="{{ interval_minutes }}" required><em>分钟</em></div>
+          <small>允许范围 1–1440 分钟；当前为每 {{ interval_minutes }} 分钟采集一次。</small>
+        </label>
+        <div class="frequency-guide">
+          <b>时间参考</b>
+          <span>15 分钟 · 高频追踪</span>
+          <span>30 分钟 · 默认节奏</span>
+          <span>60 分钟 · 低频观察</span>
+        </div>
+        <button type="submit">保存并重新排期</button>
+      </form>
+    </section>
+
+    <section class="settings-block comment-platform-block">
+      <div class="settings-heading">
+        <div><span class="section-number">03</span><h2>热评采集平台</h2></div>
+        <p>选择手动采集及“AI 写头条文章”自动补采时使用的平台。所选平台最多 4 路并行，每个平台仍保持低频限额。</p>
+      </div>
+      <form method="post" class="platform-form">
+        <input type="hidden" name="form_action" value="comment_platforms">
+        <div class="platform-selector comment-platform-selector">
+          {% for platform_id, platform_name in comment_platforms.items() %}
+            <label class="platform-option">
+              <input type="checkbox" name="comment_platforms" value="{{ platform_id }}" {% if platform_id in selected_comment_platforms %}checked{% endif %}>
+              <span class="checkmark" aria-hidden="true"></span>
+              <span class="platform-option-copy"><b>{{ platform_name }}</b><small>{{ platform_id }}</small></span>
+              <em>HOT COMMENTS</em>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="form-footer">
+          <span>至少选择 1 个平台；无热评话题会先自动采集，再继续生成文章。</span>
+          <button type="submit">保存热评平台</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="settings-block ai-connection-block">
+      <div class="settings-heading">
+        <div><span class="section-number">04</span><h2>AI 连接</h2></div>
+        <p>修改 API Key 和 OpenAI 兼容接口地址。设置保存在本机 SQLite，不会出现在 AI 请求日志中。</p>
+      </div>
+      <form method="post" class="connection-form" autocomplete="off">
+        <input type="hidden" name="form_action" value="ai_connection">
+        <label class="connection-field key-field">
+          <span>API KEY</span>
+          <input type="text" name="ai_api_key" value="{{ ai_api_key }}" placeholder="请输入 API Key" autocomplete="off" spellcheck="false">
+          <small>{{ '已加载本地保存的完整 Key，可直接编辑。' if ai_key_configured else '当前未配置 API Key。' }}</small>
+        </label>
+        <label class="connection-field url-field">
+          <span>BASE URL</span>
+          <input type="url" name="ai_base_url" value="{{ ai_base_url }}" required spellcheck="false" placeholder="https://api.example.com/v1">
+          <small>请填到 /v1 层级，程序会自动追加 /chat/completions。</small>
+        </label>
+        <div class="connection-model">
+          <span>CURRENT MODEL</span><b>{{ ai_model }}</b><small>模型名仍由 .env 中的 AI_MODEL 控制</small>
+        </div>
+        <button type="submit">保存 AI 连接</button>
+      </form>
+    </section>
+
+    <section class="settings-block article-prompt-block">
+      <div class="settings-heading">
+        <div><span class="section-number">05</span><h2>爆款文章提示词</h2></div>
+        <p>点击话题的“AI 写头条文章”时，系统会把这段提示词与该话题的新闻、帖子和热评一起发给当前 AI 模型。</p>
+      </div>
+      <form method="post" class="prompt-form">
+        <input type="hidden" name="form_action" value="article_prompt">
+        <label for="article-prompt">写作提示词</label>
+        <textarea id="article-prompt" name="article_prompt" rows="16" required>{{ article_prompt }}</textarea>
+        <div class="form-footer">
+          <span>修改只影响之后生成的文章；每次保存的版本都会追加存档，历史结果也会保留当时的提示词。</span>
+          <button type="submit">保存文章提示词</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="settings-block web-search-settings-block">
+      <div class="settings-heading">
+        <div><span class="section-number">06</span><h2>AI 联网权限</h2></div>
+        <p>控制文章生成时是否允许 AI 使用联网搜索工具访问热榜链接。关闭后仅使用已采集的新闻、帖子和热评资料。</p>
+      </div>
+      <form method="post" class="toggle-form">
+        <input type="hidden" name="form_action" value="article_web_search">
+        <label class="toggle-option">
+          <input type="checkbox" name="article_web_search_enabled" value="1" {% if article_web_search_enabled %}checked{% endif %}>
+          <span class="checkmark" aria-hidden="true"></span>
+          <span><b>文章生成时允许 AI 联网</b><small>开启后普通文章和深度长文都可参考网页内容。</small></span>
+        </label>
+        <button type="submit">保存联网设置</button>
+      </form>
+    </section>
+
+    <section class="settings-block article-prompt-block">
+      <div class="settings-heading">
+        <div><span class="section-number">07</span><h2>深度长文提示词</h2></div>
+        <p>点击话题的“AI 写深度长文”时，系统会把这套独立提示词与同样的新闻、帖子和热评资料一起发给当前 AI 模型。</p>
+      </div>
+      <form method="post" class="prompt-form">
+        <input type="hidden" name="form_action" value="long_article_prompt">
+        <label for="long-article-prompt">深度写作提示词</label>
+        <textarea id="long-article-prompt" name="long_article_prompt" rows="18" required>{{ long_article_prompt }}</textarea>
+        <div class="form-footer">
+          <span>这套提示词只影响深度长文；每次保存的版本都会追加存档，与普通头条文章互不覆盖。</span>
+          <button type="submit">保存深度长文提示词</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="settings-block weight-settings-block">
+      <div class="settings-heading">
+        <div><span class="section-number">08</span><h2>总榜排序权重</h2></div>
+        <p>调整三项归一化指标在综合排序中的影响。可填写任意非负数，保存时会自动按合计值归一化，首页排序立即更新。</p>
+      </div>
+      <form method="post" class="weight-form" id="weight-form">
+        <input type="hidden" name="form_action" value="ranking_weights">
+        <label class="weight-control weight-current">
+          <span>A / CURRENT</span><b>多平台共振</b>
+          <div><input type="number" name="weight_current" min="0" step="1" value="{{ '%.0f'|format(section_weights.current * 100) }}" required><em>份</em></div>
+          <small>当前跨平台覆盖与榜位贡献</small>
+        </label>
+        <label class="weight-control weight-rising">
+          <span>B / RISING</span><b>快速升温</b>
+          <div><input type="number" name="weight_rising" min="0" step="1" value="{{ '%.0f'|format(section_weights.rising * 100) }}" required><em>份</em></div>
+          <small>近期热度斜率与名次改善</small>
+        </label>
+        <label class="weight-control weight-sustained">
+          <span>C / SUSTAINED</span><b>持续高热</b>
+          <div><input type="number" name="weight_sustained" min="0" step="1" value="{{ '%.0f'|format(section_weights.sustained * 100) }}" required><em>份</em></div>
+          <small>历史窗口内的累计热度</small>
+        </label>
+        <div class="weight-summary">
+          <span>归一化预览</span>
+          <strong id="weight-preview">共振 50% · 升温 30% · 高热 20%</strong>
+          <button type="submit">保存排序权重</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="settings-block formula-block">
+      <div class="settings-heading">
+        <div><span class="section-number">09</span><h2>模块指标与总榜公式</h2></div>
+        <p>页面只展示一张总榜，以下三类指标用于打标和合并排序。α={{ scoring.get('rank_exponent', 1.2) }}，历史窗口为最近 {{ recent_runs }} 次。</p>
+      </div>
+      <div class="formula-grid">
+        <article class="formula-card signal-card">
+          <span class="formula-index">A / CURRENT</span>
+          <h3>多平台共振</h3>
+          <code>Hₜ(T) = Σₚ wₚ · ((Nₚ − rₚ,ₜ + 1) / Nₚ)<sup>α</sup></code>
+          <p>对话题 T 当前所在的每个平台求和。wₚ 是平台权重，Nₚ 是该平台榜单长度，rₚ,ₜ 是当前站内名次；同平台只取名次最高的一条。</p>
+          <dl><div><dt>排序字段</dt><dd>Hₜ(T) 降序</dd></div><div><dt>入选条件</dt><dd>至少 {{ scoring.get('min_platforms', 2) }} 个平台</dd></div></dl>
+        </article>
+        <article class="formula-card rise-card">
+          <span class="formula-index">B / RISING</span>
+          <h3>快速升温</h3>
+          <code>R(T) = |Pₜ| · max(0, slope(H)) · n · (1 + G<sub>rank</sub>)</code>
+          <p>slope(H) 是近 n 次综合热度的线性回归斜率；|Pₜ| 是当前平台数；G<sub>rank</sub> 是相邻采集中各平台名次分正向改善的加权平均。</p>
+          <dl><div><dt>排序字段</dt><dd>R(T) 降序</dd></div><div><dt>最低分</dt><dd>{{ scoring.get('rising_min_score', 0.02) }}</dd></div></dl>
+        </article>
+        <article class="formula-card stay-card">
+          <span class="formula-index">C / SUSTAINED</span>
+          <h3>持续高热</h3>
+          <code>S(T) = Σᵢ₌ₜ₋ₙ₊₁<sup>t</sup> Hᵢ(T)</code>
+          <p>累加近 n 次采集的综合热度。话题必须仍在最新一轮出现，并达到最低出现覆盖率，避免昙花一现的话题进入该模块。</p>
+          <dl><div><dt>排序字段</dt><dd>S(T) 降序</dd></div><div><dt>最低覆盖率</dt><dd>{{ '%.0f%%'|format(scoring.get('sustained_min_presence_ratio', 0.5) * 100) }}</dd></div></dl>
+        </article>
+      </div>
+      <p class="formula-footnote">总榜分 = {{ '%.2f'|format(section_weights.current) }} × H/max(H) + {{ '%.2f'|format(section_weights.rising) }} × R/max(R) + {{ '%.2f'|format(section_weights.sustained) }} × S/max(S)。未入选某标签时，该项记 0 分。AI 只负责事件聚类，不能修改排序数据。</p>
+    </section>
+  </main>
+  <script>
+    const boxes = [...document.querySelectorAll('input[name="analysis_sources"]')];
+    const count = document.querySelector('#selected-count');
+    const updateCount = () => count.textContent = `已选择 ${boxes.filter(box => box.checked).length} 个平台`;
+    boxes.forEach(box => box.addEventListener('change', updateCount));
+    const weightInputs = [...document.querySelectorAll('#weight-form input[type="number"]')];
+    const weightPreview = document.querySelector('#weight-preview');
+    const updateWeightPreview = () => {
+      const values = weightInputs.map(input => Math.max(0, Number(input.value) || 0));
+      const total = values.reduce((sum, value) => sum + value, 0);
+      const percentages = total > 0 ? values.map(value => Math.round(value / total * 100)) : [0, 0, 0];
+      weightPreview.textContent = `共振 ${percentages[0]}% · 升温 ${percentages[1]}% · 高热 ${percentages[2]}%`;
+    };
+    weightInputs.forEach(input => input.addEventListener('input', updateWeightPreview));
+    updateWeightPreview();
+  </script>
+</body>
+</html>

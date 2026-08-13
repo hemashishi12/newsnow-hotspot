@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>热榜雷达台</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="paper-noise"></div>
+  <header class="masthead">
+    <div class="edition">NEWSNOW / LOCAL INTELLIGENCE</div>
+    <div class="mast-grid">
+      <div>
+        <p class="eyebrow">跨平台热点观测</p>
+        <h1>热榜雷达台</h1>
+      </div>
+      <div class="run-meta">
+        {% if dashboard.latest_run %}
+          <span>第 {{ dashboard.latest_run.id }} 次采集</span>
+          <strong>{{ dashboard.latest_run.completed_at }}</strong>
+          <span>{{ dashboard.latest_run.source_count }} 个平台 · {{ dashboard.latest_run.item_count }} 条</span>
+        {% else %}
+          <strong>等待首次采集</strong>
+        {% endif %}
+      </div>
+    </div>
+    <nav class="action-bar">
+      <form method="post" action="{{ url_for('trigger_collect') }}">
+        <button type="submit" {% if state.collecting %}disabled{% endif %}>
+          {{ '正在采集…' if state.collecting else '立即采集一轮' }}
+        </button>
+      </form>
+      <a href="{{ url_for('raw_lists') }}">查看完整源榜单 →</a>
+      <a class="history-link" href="{{ url_for('article_history') }}">✎ 写文历史</a>
+      <a class="log-link" href="{{ url_for('logs_page') }}">● 运行日志</a>
+      <a class="settings-link" href="{{ url_for('settings_page') }}">⚙ 分析设置</a>
+      <span>后台每 {{ dashboard.collection_interval_minutes }} 分钟采集</span>
+    </nav>
+  </header>
+
+  <main>
+    {% if not dashboard.ai_configured %}
+      <aside class="notice"><b>尚未配置 AI</b><span>原始榜单仍会保存。请在 .env 填入 AI_API_KEY、AI_BASE_URL 和 AI_MODEL 后重新分析。</span></aside>
+    {% endif %}
+    {% if dashboard.analysis_stale and dashboard.analysis_run %}
+      <aside class="notice danger"><b>最新一轮 AI 未完成</b><span>27个平台原始榜单已经保存；当前总榜暂时展示第 {{ dashboard.analysis_run.id }} 轮最近一次成功分析，避免因接口失败清空页面。</span></aside>
+    {% endif %}
+    {% if state.last_error %}<aside class="notice danger"><b>最近一次任务失败</b><span>{{ state.last_error }}</span></aside>{% endif %}
+
+    <section class="report-section unified-section">
+      <div class="section-head">
+        <span class="section-number">01</span>
+        <div>
+          <h2>热点综合总榜</h2>
+          <p>话题不再分版块重复展示。各模块原始分先按当期最高分归一化，再按多平台共振 {{ '%.0f%%'|format(dashboard.section_weights.current * 100) }} / 快速升温 {{ '%.0f%%'|format(dashboard.section_weights.rising * 100) }} / 持续高热 {{ '%.0f%%'|format(dashboard.section_weights.sustained * 100) }} 合并排序。</p>
+        </div>
+        <div class="section-count">{{ dashboard.topics|length }} TOPICS</div>
+      </div>
+      <div class="topic-list">
+        {% for topic in dashboard.topics %}
+          <article class="topic-card" style="--delay: {{ loop.index0 * 35 }}ms">
+            <div class="topic-rank">{{ '%02d'|format(loop.index) }}</div>
+            <div class="topic-copy">
+              <div class="topic-labels">
+                {% for label in topic.labels %}<span class="topic-label label-{{ label.key }}">{{ label.name }}</span>{% endfor %}
+              </div>
+              <h3>{{ topic.title }}</h3>
+              <div class="badges">
+                {% for member in topic.members %}
+                  <a class="platform-badge trend-badge" href="{{ member.url }}" target="_blank" rel="noopener noreferrer" title="{{ member.title }}｜当前第 {{ member.rank }} 名{% if member.previous_rank is not none %}｜此前第 {{ member.previous_rank }} 名{% else %}｜暂无可比较的历史名次{% endif %}">
+                    {{ member.source_name }} <i class="rank-current">#{{ member.rank }}</i>
+                    {% if member.previous_rank is none %}
+                      <i class="rank-change rank-new" aria-label="新进榜">NEW</i>
+                    {% elif member.rank_change > 0 %}
+                      <i class="rank-change rank-up" aria-label="排名上升 {{ member.rank_change }} 位"><span class="trend-symbol" aria-hidden="true">▲</span>{{ member.rank_change }}</i>
+                    {% elif member.rank_change < 0 %}
+                      <i class="rank-change rank-down" aria-label="排名下降 {{ -member.rank_change }} 位"><span class="trend-symbol" aria-hidden="true">▼</span>{{ -member.rank_change }}</i>
+                    {% else %}
+                      <i class="rank-change rank-flat" aria-label="排名不变"><span class="trend-symbol" aria-hidden="true">●</span>0</i>
+                    {% endif %}
+                  </a>
+                {% endfor %}
+              </div>
+              <div class="comment-actions">
+                <button type="button" class="article-generate-button" data-topic-id="{{ topic.topic_id }}" data-topic-title="{{ topic.title }}" data-article-type="standard" data-label="✦ AI 写头条文章">✦ AI 写头条文章</button>
+                <button type="button" class="article-generate-button long-article-button" data-topic-id="{{ topic.topic_id }}" data-topic-title="{{ topic.title }}" data-article-type="long" data-label="✦ AI 写深度长文">✦ AI 写深度长文</button>
+                <button type="button" class="article-customize-button" data-topic-id="{{ topic.topic_id }}" data-topic-title="{{ topic.title }}">定制提示词</button>
+                <form method="post" action="{{ url_for('trigger_topic_comments', topic_id=topic.topic_id) }}" target="_blank">
+                  <input type="hidden" name="keyword" value="{{ topic.title }}">
+                  <button type="submit" {% if topic.comment_summary.status in ['queued','running'] %}disabled{% endif %}>
+                    {{ '评论采集中…' if topic.comment_summary.status in ['queued','running'] else '采集所选平台热评' }}
+                  </button>
+                </form>
+                <a href="{{ url_for('topic_comments', topic_id=topic.topic_id) }}">查看评论 · {{ topic.comment_summary.post_count }} 帖 / {{ topic.comment_summary.comment_count }} 评 →</a>
+              </div>
+            </div>
+            <figure class="rank-chart-panel">
+              {% if topic.rank_chart.series %}
+                <div class="rank-chart-frame">
+                  <div class="rank-chart-legend" aria-hidden="true"></div>
+                  <div class="rank-chart-canvas">
+                    <canvas class="rank-chart" role="img" aria-label="{{ topic.title }}在各平台的榜单名次变化"></canvas>
+                  </div>
+                </div>
+                <script type="application/json" class="rank-chart-data">{{ topic.rank_chart|tojson }}</script>
+              {% else %}
+                <p class="rank-chart-empty">统计范围内暂无榜位轨迹</p>
+              {% endif %}
+            </figure>
+            <div class="score-block">
+              <b>{{ '%.3f'|format(topic.score) }}</b>
+              <span>综合排序分</span>
+              <small>共振 {{ '%.3f'|format(topic.weighted_scores.current) }} · 升温 {{ '%.3f'|format(topic.weighted_scores.rising) }} · 高热 {{ '%.3f'|format(topic.weighted_scores.sustained) }}</small>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty-state"><span>∅</span><p>本轮尚无 AI 确认的跨平台同一事件</p></div>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>数据来自 NewsNow 返回的公开热榜接口</span>
+    <span>AI 负责聚类 · 代码负责评分 · SQLite 保存轨迹</span>
+  </footer>
+  <dialog id="article-dialog" class="article-dialog prompt-studio-dialog">
+    <div class="article-dialog-head">
+      <div><span>PROMPT DESK / ONE-TIME</span><h2 id="article-dialog-title">定制提示词</h2></div>
+      <button type="button" id="article-dialog-close" aria-label="关闭">×</button>
+    </div>
+    <p id="article-dialog-status" class="article-dialog-status">默认使用“爆款文章”提示词</p>
+    <section id="article-prompt-panel" class="article-prompt-panel">
+      <div class="article-prompt-heading">
+        <div><span>ONE-TIME INSTRUCTION</span><b>本次写作提示词</b></div>
+        <small>固定模板来自设置页；自定义标签显示在其后。</small>
+      </div>
+      <div id="article-prompt-presets" class="article-prompt-presets"></div>
+      <textarea id="article-custom-prompt" aria-label="本次写作提示词"></textarea>
+      <div class="article-prompt-save">
+        <input id="article-preset-name" maxlength="30" placeholder="输入标签名，例如：克制评论">
+        <button type="button" id="article-preset-save">保存为常用标签</button>
+        <span id="article-preset-status"></span>
+      </div>
+    </section>
+    <div class="article-dialog-actions">
+      <small id="article-selected-type">当前：爆款文章</small>
+      <div class="article-action-buttons">
+        <a id="article-history" class="article-action-link" href="{{ url_for('article_history') }}" target="_blank">写文历史</a>
+        <button type="button" id="article-generate">按此提示词后台写作</button>
+      </div>
+    </div>
+  </dialog>
+  <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='dashboard-charts.js') }}"></script>
+  <script>
+    {% if state.collecting %}
+    const poll = setInterval(async () => {
+      const data = await fetch('/api/status').then(r => r.json());
+      if (!data.collecting) {
+        clearInterval(poll);
+        const articleDialog = document.querySelector('#article-dialog');
+        if (articleDialog?.open) {
+          articleDialog.addEventListener('close', () => location.reload(), {once: true});
+        } else {
+          location.reload();
+        }
+      }
+    }, 2500);
+    {% endif %}
+    /* Legacy popup article-result flow retained temporarily for reference.
+    const articleDialog = document.querySelector('#article-dialog');
+    const articleStatus = document.querySelector('#article-dialog-status');
+    const articleContent = document.querySelector('#article-dialog-content');
+    const articleTitle = document.querySelector('#article-dialog-title');
+    const regenerateArticleButton = document.querySelector('#article-regenerate');
+    const generateArticleButton = document.querySelector('#article-generate');
+    const customizeArticleButton = document.querySelector('#article-customize');
+    const promptPanel = document.querySelector('#article-prompt-panel');
+    const customPrompt = document.querySelector('#article-custom-prompt');
+    const promptPresets = document.querySelector('#article-prompt-presets');
+    const presetName = document.querySelector('#article-preset-name');
+    const presetSave = document.querySelector('#article-preset-save');
+    const presetStatus = document.querySelector('#article-preset-status');
+    const copyArticleButton = document.querySelector('#article-copy');
+    const toutiaoArticleButton = document.querySelector('#article-toutiao');
+    const articleButtons = [...document.querySelectorAll('.article-generate-button')];
+    const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    let generatedArticle = null;
+    let currentTopicId = null;
+    let currentArticleType = 'standard';
+    let currentJobId = null;
+    const articleTypeName = articleType => articleType === 'long' ? '深度长文' : '头条文章';
+    const articleApiUrl = (topicId, articleType) => `/api/topics/${topicId}/article?article_type=${articleType}`;
+    const setTopicButtonsBusy = (topicId, busy) => {
+      articleButtons.filter(button => button.dataset.topicId === topicId).forEach(button => {
+        button.disabled = busy;
+        button.textContent = busy ? 'AI 正在写作…' : button.dataset.label;
+      });
+    };
+    const showArticle = (data, statusText) => {
+      articleContent.textContent = data.content;
+      articleStatus.textContent = statusText;
+      articleStatus.classList.remove('error');
+      generatedArticle = data;
+      regenerateArticleButton.disabled = false;
+      generateArticleButton.hidden = true;
+      copyArticleButton.disabled = false;
+      toutiaoArticleButton.disabled = false;
+    };
+    const loadArticlePrompts = async articleType => {
+      const response = await fetch(`/api/article-prompts?article_type=${articleType}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || '无法读取文章提示词');
+      customPrompt.value = data.default_prompt;
+      promptPresets.replaceChildren();
+      data.presets.forEach(preset => {
+        const tag = document.createElement('div');
+        tag.className = 'article-prompt-tag';
+        const applyButton = document.createElement('button');
+        applyButton.type = 'button';
+        applyButton.className = 'article-prompt-tag-apply';
+        applyButton.textContent = preset.name;
+        applyButton.title = '点击应用这个提示词';
+        applyButton.addEventListener('click', () => {
+          customPrompt.value = preset.prompt;
+          presetStatus.textContent = `已应用「${preset.name}」`;
+        });
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'article-prompt-tag-delete';
+        deleteButton.textContent = '×';
+        deleteButton.setAttribute('aria-label', `删除提示词标签「${preset.name}」`);
+        deleteButton.title = `删除「${preset.name}」`;
+        deleteButton.addEventListener('click', async () => {
+          if (!window.confirm(`确定删除提示词标签「${preset.name}」吗？`)) return;
+          const response = await fetch(`/api/article-prompt-presets/${preset.id}`, {method: 'DELETE'});
+          if (!response.ok) {
+            const error = await response.json();
+            presetStatus.textContent = error.error || '删除标签失败';
+            return;
+          }
+          presetStatus.textContent = `已删除「${preset.name}」`;
+          await loadArticlePrompts(articleType);
+        });
+        tag.append(applyButton, deleteButton);
+        promptPresets.append(tag);
+      });
+    };
+    const pollArticleJob = async jobId => {
+      currentJobId = jobId;
+      for (let attempt = 0; attempt < 900; attempt += 1) {
+        await delay(2000);
+        const response = await fetch(`/api/article-jobs/${jobId}`);
+        const job = await response.json();
+        if (!response.ok) throw new Error(job.error || '无法读取写作任务');
+        if (currentJobId !== jobId) return;
+        articleStatus.textContent = job.message || '后台写作任务进行中…';
+        if (job.status === 'success') {
+          showArticle(job.article, `新${articleTypeName(currentArticleType)}生成完成`);
+          return;
+        }
+        if (job.status === 'failed') throw new Error(job.error || '后台写作任务失败');
+      }
+      throw new Error('后台写作等待超时，可关闭窗口并稍后从写文历史查看。');
+    };
+    const generateArticle = async (topicId, articleType) => {
+      const typeName = articleTypeName(articleType);
+      articleStatus.textContent = `正在整理新闻与热评并生成${typeName}，请稍候…`;
+      articleStatus.classList.remove('error');
+      articleContent.textContent = '';
+      regenerateArticleButton.disabled = true;
+      generateArticleButton.disabled = true;
+      copyArticleButton.disabled = true;
+      toutiaoArticleButton.disabled = true;
+      toutiaoArticleButton.textContent = '发布到头条号';
+      generatedArticle = null;
+      setTopicButtonsBusy(topicId, true);
+      try {
+        const response = await fetch(articleApiUrl(topicId, articleType), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({comments_attempted: false, prompt: customPrompt.value}),
+        });
+        const data = await response.json();
+        if (response.status === 202) {
+          const platformText = (data.platforms || []).join('、');
+          articleStatus.textContent = `后台任务已接管：正在采集${platformText || '热评'}，关闭本页也会继续写作。`;
+          await pollArticleJob(data.job_id);
+          return;
+        }
+        if (!response.ok) throw new Error(data.error || `${typeName}生成失败`);
+        showArticle(data, `新${typeName}生成完成`);
+      } catch (error) {
+        articleStatus.textContent = error.message;
+        articleStatus.classList.add('error');
+        regenerateArticleButton.disabled = false;
+        generateArticleButton.disabled = false;
+      } finally {
+        setTopicButtonsBusy(topicId, false);
+      }
+    };
+    articleButtons.forEach(button => button.addEventListener('click', async () => {
+      const topicId = button.dataset.topicId;
+      const articleType = button.dataset.articleType;
+      currentTopicId = topicId;
+      currentArticleType = articleType;
+      currentJobId = null;
+      articleTitle.textContent = `${button.dataset.topicTitle} · ${articleTypeName(articleType)}`;
+      articleStatus.textContent = `正在查找这个话题以前写过的${articleTypeName(articleType)}…`;
+      articleStatus.classList.remove('error');
+      articleContent.textContent = '';
+      regenerateArticleButton.disabled = true;
+      generateArticleButton.hidden = false;
+      generateArticleButton.disabled = false;
+      promptPanel.hidden = true;
+      copyArticleButton.disabled = true;
+      toutiaoArticleButton.disabled = true;
+      toutiaoArticleButton.textContent = '发布到头条号';
+      generatedArticle = null;
+      articleDialog.showModal();
+      try {
+        await loadArticlePrompts(articleType);
+        const response = await fetch(articleApiUrl(topicId, articleType));
+        const data = await response.json();
+        if (currentTopicId !== topicId || currentArticleType !== articleType) return;
+        if (response.status === 404) {
+          articleStatus.textContent = `尚无${articleTypeName(articleType)}。可直接开始写作，或先定制本次提示词。`;
+          articleContent.textContent = '准备就绪。点击「开始写作」后，任务会在后台持续执行。';
+          return;
+        }
+        if (response.status === 202) {
+          articleStatus.textContent = data.message || '后台写作任务仍在进行…';
+          generateArticleButton.hidden = true;
+          await pollArticleJob(data.job_id);
+          return;
+        }
+        if (!response.ok) throw new Error(data.error || `无法读取以前写过的${articleTypeName(articleType)}`);
+        const writtenAt = data.created_at ? data.created_at.replace('T', ' ') : '';
+        showArticle(data, `已复用之前写过的${articleTypeName(articleType)}${writtenAt ? ` · ${writtenAt}` : ''}`);
+      } catch (error) {
+        articleStatus.textContent = error.message;
+        articleStatus.classList.add('error');
+        regenerateArticleButton.disabled = false;
+      }
+    }));
+    regenerateArticleButton.addEventListener('click', () => {
+      if (currentTopicId) generateArticle(currentTopicId, currentArticleType);
+    });
+    generateArticleButton.addEventListener('click', () => {
+      if (currentTopicId) generateArticle(currentTopicId, currentArticleType);
+    });
+    customizeArticleButton.addEventListener('click', () => {
+      promptPanel.hidden = !promptPanel.hidden;
+      customizeArticleButton.textContent = promptPanel.hidden ? '定制本次提示词' : '收起提示词';
+      if (!promptPanel.hidden) customPrompt.focus();
+    });
+    presetSave.addEventListener('click', async () => {
+      presetStatus.textContent = '';
+      try {
+        const response = await fetch('/api/article-prompt-presets', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: presetName.value, prompt: customPrompt.value, article_type: currentArticleType}),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || '保存标签失败');
+        presetStatus.textContent = `已保存「${data.name}」`;
+        presetName.value = '';
+        await loadArticlePrompts(currentArticleType);
+        customPrompt.value = data.prompt;
+      } catch (error) { presetStatus.textContent = error.message; }
+    });
+    document.querySelector('#article-dialog-close').addEventListener('click', () => articleDialog.close());
+    copyArticleButton.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(articleContent.textContent);
+      copyArticleButton.textContent = '已复制';
+      setTimeout(() => { copyArticleButton.textContent = '复制全文'; }, 1500);
+    });
+    toutiaoArticleButton.addEventListener('click', async () => {
+      if (!generatedArticle?.content) return;
+      toutiaoArticleButton.disabled = true;
+      toutiaoArticleButton.textContent = '正在打开…';
+      articleStatus.classList.remove('error');
+      articleStatus.textContent = '正在启动头条号写作窗口…';
+      try {
+        const response = await fetch('/api/toutiao/drafts', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            content: generatedArticle.content,
+            topic_title: generatedArticle.topic_title || articleTitle.textContent,
+          }),
+        });
+        const job = await response.json();
+        if (!response.ok) throw new Error(job.error || '无法打开头条号写作页');
+        for (let attempt = 0; attempt < 600; attempt += 1) {
+          await delay(1000);
+          const statusResponse = await fetch(`/api/toutiao/drafts/${job.job_id}`);
+          const status = await statusResponse.json();
+          if (!statusResponse.ok) throw new Error(status.error || '无法读取头条号填稿状态');
+          articleStatus.textContent = status.message || '正在自动填稿…';
+          if (status.status === 'filled') {
+            toutiaoArticleButton.textContent = '已填入头条号';
+            return;
+          }
+          if (status.status === 'error') throw new Error(status.message || '头条号自动填稿失败');
+        }
+        throw new Error('等待头条号登录或填稿超时');
+      } catch (error) {
+        articleStatus.textContent = error.message;
+        articleStatus.classList.add('error');
+        toutiaoArticleButton.disabled = false;
+        toutiaoArticleButton.textContent = '重试发布到头条号';
+      }
+    });
+    */
+  </script>
+  <script src="{{ url_for('static', filename='article-actions.js') }}"></script>
+</body>
+</html>

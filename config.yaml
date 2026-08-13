@@ -1,0 +1,69 @@
+app:
+  host: "127.0.0.1"
+  port: 8765
+  interval_minutes: 30
+  collect_on_startup: true
+  recent_runs: 10
+  database: "data/hotspots.db"
+
+newsnow:
+  api_url: "https://newsnow.busiyi.world/api/s"
+  timeout_seconds: 20
+  retries: 2
+  request_interval_seconds: 1.5
+  # NewsNow 公共网页“最热”分类当前可用的 27 个榜单源。
+  # collect=true：保存完整榜单；analyze=true：首次运行时默认送入 AI。
+  # 网页设置中保存过选择后，以网页选择为准。
+  sources:
+    - {id: "toutiao", name: "今日头条", weight: 1.20, collect: true, analyze: true}
+    - {id: "zhihu", name: "知乎", weight: 1.00, collect: true, analyze: true}
+    - {id: "weibo", name: "微博", weight: 1.15, collect: true, analyze: true}
+    - {id: "douyin", name: "抖音", weight: 1.10, collect: true, analyze: true}
+    - {id: "baidu", name: "百度热搜", weight: 1.10, collect: true, analyze: true}
+    - {id: "thepaper", name: "澎湃新闻", weight: 0.90, collect: true, analyze: false}
+    - {id: "bilibili-hot-search", name: "哔哩哔哩", weight: 0.80, collect: true, analyze: false}
+    - {id: "wallstreetcn-hot", name: "华尔街见闻", weight: 0.85, collect: true, analyze: false}
+    - {id: "cls-hot", name: "财联社", weight: 0.85, collect: true, analyze: false}
+    - {id: "ifeng", name: "凤凰网", weight: 0.80, collect: true, analyze: false}
+    - {id: "tieba", name: "百度贴吧", weight: 0.65, collect: true, analyze: false}
+    - {id: "chongbuluo-hot", name: "虫部落·最热", weight: 0.55, collect: true, analyze: false}
+    - {id: "coolapk", name: "酷安·今日最热", weight: 0.65, collect: true, analyze: false}
+    - {id: "douban", name: "豆瓣·热门电影", weight: 0.60, collect: true, analyze: false}
+    - {id: "freebuf", name: "FreeBuf·网络安全", weight: 0.65, collect: true, analyze: false}
+    - {id: "github-trending-today", name: "GitHub·Trending", weight: 0.60, collect: true, analyze: false}
+    - {id: "hackernews", name: "Hacker News", weight: 0.60, collect: true, analyze: false}
+    - {id: "hupu", name: "虎扑·主干道热帖", weight: 0.70, collect: true, analyze: false}
+    - {id: "iqiyi-hot-ranklist", name: "爱奇艺·热播榜", weight: 0.60, collect: true, analyze: false}
+    - {id: "juejin", name: "稀土掘金", weight: 0.60, collect: true, analyze: false}
+    - {id: "nowcoder", name: "牛客", weight: 0.60, collect: true, analyze: false}
+    - {id: "producthunt", name: "Product Hunt", weight: 0.55, collect: true, analyze: false}
+    - {id: "qqvideo-tv-hotsearch", name: "腾讯视频·热搜榜", weight: 0.65, collect: true, analyze: false}
+    - {id: "sspai", name: "少数派", weight: 0.60, collect: true, analyze: false}
+    - {id: "steam", name: "Steam·在线人数", weight: 0.50, collect: true, analyze: false}
+    - {id: "tencent-hot", name: "腾讯新闻·综合早报", weight: 0.95, collect: true, analyze: false}
+    - {id: "xueqiu-hotstock", name: "雪球·热门股票", weight: 0.75, collect: true, analyze: false}
+
+ai:
+  # API Key、接口地址和模型名从 .env 读取。
+  reasoning_effort: "high"
+  timeout_seconds: 600
+  max_output_tokens: 16000
+  temperature: 0.1
+  max_recent_topics: 120
+  selection_instructions: >-
+    只合并确实指向同一个具体新闻事件、政策、人物动态或公共议题的标题。
+    仅共享人物名、地区名或宽泛概念不算同一话题。排除含义模糊、无法判断事件主体的组合。
+
+scoring:
+  min_platforms: 2
+  # 名次分 = ((榜单长度 - 名次 + 1) / 榜单长度) ^ rank_exponent
+  rank_exponent: 1.20
+  rising_min_score: 0.02
+  sustained_min_presence_ratio: 0.50
+  # 统一总榜 = 各模块内分数除以该模块当期最高分，再按以下权重求和。
+  section_weights:
+    current: 0.50
+    rising: 0.30
+    sustained: 0.20
+  max_results_total: 30
+  max_results_per_section: 20

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>运行日志 · 热榜雷达台</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="paper-noise"></div>
+  <header class="masthead compact log-masthead">
+    <div class="edition">OPERATION RECORD / LIVE TRACE</div>
+    <div class="subnav">
+      <a class="back-link" href="{{ url_for('index') }}">← 返回雷达台</a>
+      <span id="live-state" class="live-state">连接中</span>
+    </div>
+    <p class="eyebrow">采集与 AI 调用轨迹</p>
+    <h1>运行日志</h1>
+    <p>实时查看每个平台的采集进度、保存条数以及 AI 请求状态。AI 往返不包含 API Key。</p>
+  </header>
+
+  <main class="logs-main" data-run-id="{{ run_id or '' }}">
+    <section class="run-strip">
+      <b>查看轮次</b>
+      <div class="run-tabs">
+        {% for run in runs %}
+          <a href="{{ url_for('logs_page', run_id=run.id) }}" class="{{ 'active' if run.id == run_id else '' }}">
+            #{{ run.id }} <small>{{ run.status }} / AI {{ run.ai_status }}</small>
+          </a>
+        {% else %}
+          <span>暂无采集记录</span>
+        {% endfor %}
+      </div>
+    </section>
+
+    <div class="log-layout">
+      <section class="trace-panel">
+        <div class="panel-title"><span>01</span><div><h2>执行轨迹</h2><p id="trace-count">正在读取…</p></div></div>
+        <ol id="trace-list" class="trace-list"></ol>
+      </section>
+      <aside class="exchange-panel">
+        <div class="panel-title"><span>02</span><div><h2>AI 往返</h2><p>完整请求与流式拼接回复</p></div></div>
+        <div id="exchange-list" class="exchange-list"></div>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="exchange-dialog" class="exchange-dialog">
+    <form method="dialog"><button class="dialog-close" aria-label="关闭">×</button></form>
+    <header><span>AI TRANSMISSION</span><h2 id="dialog-title">AI 往返</h2></header>
+    <div class="exchange-columns">
+      <section><h3>发送给 AI 的信息</h3><pre id="request-content"></pre></section>
+      <section><h3>AI 完整回复</h3><pre id="response-content"></pre></section>
+    </div>
+  </dialog>
+
+  <script>
+    const main = document.querySelector('.logs-main');
+    const runId = main.dataset.runId;
+    const traceList = document.querySelector('#trace-list');
+    const exchangeList = document.querySelector('#exchange-list');
+    const dialog = document.querySelector('#exchange-dialog');
+
+    function element(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function renderTrace(logs) {
+      traceList.replaceChildren();
+      document.querySelector('#trace-count').textContent = `${logs.length} 条记录`;
+      for (const log of logs) {
+        const row = element('li', `trace-row level-${log.level}`);
+        const time = element('time', '', log.created_at.replace('T', ' ').slice(0, 19));
+        const mark = element('i', 'trace-mark');
+        const copy = element('div', 'trace-copy');
+        copy.append(element('b', '', log.stage.toUpperCase()), element('p', '', log.message));
+        row.append(time, mark, copy);
+        traceList.append(row);
+      }
+      if (!logs.length) traceList.append(element('li', 'trace-empty', '这一轮还没有日志记录'));
+    }
+
+    function renderExchanges(exchanges) {
+      exchangeList.replaceChildren();
+      for (const exchange of exchanges) {
+        const card = element('article', 'exchange-card');
+        const header = element('div', 'exchange-card-head');
+        header.append(element('b', '', `往返 #${exchange.id}`), element('span', `status-${exchange.status}`, exchange.status));
+        const meta = element('p', '', `HTTP ${exchange.http_status ?? '—'} · ${exchange.created_at.replace('T', ' ').slice(0, 19)}`);
+        const button = element('button', 'exchange-button', '查看发送信息与 AI 回复 →');
+        button.type = 'button';
+        button.addEventListener('click', () => showExchange(exchange.id));
+        card.append(header, meta, button);
+        exchangeList.append(card);
+      }
+      if (!exchanges.length) exchangeList.append(element('div', 'exchange-empty', '本轮尚未调用 AI'));
+    }
+
+    async function showExchange(id) {
+      const data = await fetch(`/api/ai-exchanges/${id}`).then(response => response.json());
+      document.querySelector('#dialog-title').textContent = `AI 往返 #${id}`;
+      document.querySelector('#request-content').textContent = data.request_json || '无请求内容';
+      document.querySelector('#response-content').textContent = data.response_text || data.error || '等待 AI 回复…';
+      dialog.showModal();
+    }
+
+    async function refresh() {
+      const suffix = runId ? `?run_id=${runId}` : '';
+      const data = await fetch(`/api/logs${suffix}`, {cache: 'no-store'}).then(response => response.json());
+      renderTrace(data.logs);
+      renderExchanges(data.exchanges);
+      const live = document.querySelector('#live-state');
+      live.textContent = data.collecting && String(data.run_id) === String(runId) ? '● 正在运行' : '○ 已同步';
+      live.classList.toggle('running', data.collecting && String(data.run_id) === String(runId));
+    }
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>
