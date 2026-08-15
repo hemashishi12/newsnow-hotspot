@@ -168,8 +168,7 @@ class CommentCrawlerTests(unittest.TestCase):
             service = CommentCrawlerService(root / "newsnow-hotspot", database)
             service._ensure_worker = lambda: None
             job_ids = service.enqueue_topic(topic_id, "话题", ["dy", "wb"])
-            self.assertEqual(service._queues["dy"].get_nowait(), job_ids[0])
-            self.assertEqual(service._queues["wb"].get_nowait(), job_ids[1])
+            self.assertEqual(service._queue.get_nowait(), job_ids)
             self.assertEqual([job["platform"] for job in reversed(database.comment_jobs(topic_id))], ["dy", "wb"])
 
     def test_enqueue_topic_does_not_duplicate_active_platform_jobs(self):
@@ -191,9 +190,9 @@ class CommentCrawlerTests(unittest.TestCase):
             self.assertEqual(len(first_ids), 2)
             self.assertEqual(duplicate_ids, [])
             self.assertEqual(len(database.comment_jobs(topic_id)), 2)
-            self.assertEqual(sum(job_queue.qsize() for job_queue in service._queues.values()), 2)
+            self.assertEqual(service._queue.qsize(), 1)
 
-    def test_same_platform_jobs_are_serial_while_other_platforms_run_in_parallel(self):
+    def test_topics_are_serial_while_their_platforms_run_in_parallel(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             database = Database(root / "platform-queues.db")
@@ -207,70 +206,35 @@ class CommentCrawlerTests(unittest.TestCase):
                     topic_ids.append(int(cursor.lastrowid))
 
             service = CommentCrawlerService(root / "newsnow-hotspot", database)
-            first_dy_started = threading.Event()
-            second_dy_started = threading.Event()
-            wb_started = threading.Event()
-            release_first_dy = threading.Event()
-            release_all = threading.Event()
-            dy_count = 0
-            count_lock = threading.Lock()
-
-            def fake_run_job(job_id):
-                nonlocal dy_count
-                platform = database.comment_job(job_id)["platform"]
-                if platform == "wb":
-                    wb_started.set()
-                    release_all.wait(timeout=2)
-                    return
-                with count_lock:
-                    dy_count += 1
-                    current = dy_count
-                if current == 1:
-                    first_dy_started.set()
-                    release_first_dy.wait(timeout=2)
-                    return
-                else:
-                    second_dy_started.set()
-                release_all.wait(timeout=2)
-
-            service._run_job = fake_run_job
-            service.enqueue_topic(topic_ids[0], "话题一", ["dy", "wb"])
-            self.assertTrue(first_dy_started.wait(timeout=1))
-            self.assertTrue(wb_started.wait(timeout=1), "不同平台任务应并行运行")
-            service.enqueue_topic(topic_ids[1], "话题二", ["dy"])
-            self.assertFalse(second_dy_started.wait(timeout=0.2), "同平台任务发生了重叠")
-            release_first_dy.set()
-            self.assertTrue(second_dy_started.wait(timeout=1), "前序任务结束后后续任务未启动")
-            release_all.set()
-
-    def test_selected_platform_jobs_start_in_parallel(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            database = Database(root / "parallel.db")
-            with database.connect() as connection:
-                cursor = connection.execute(
-                    "INSERT INTO topics(canonical_title,summary,first_seen_at,last_seen_at) VALUES (?,?,?,?)",
-                    ("并行话题", "", "2026-08-09", "2026-08-09"),
-                )
-                topic_id = int(cursor.lastrowid)
-            service = CommentCrawlerService(root / "newsnow-hotspot", database)
-            started_threads: list[str] = []
+            first_topic_started = threading.Event()
+            first_topic_all_started = threading.Event()
+            second_topic_started = threading.Event()
+            release_first_topic = threading.Event()
+            started_job_ids: list[int] = []
             started_lock = threading.Lock()
-            two_started = threading.Event()
-            release = threading.Event()
+            first_job_ids: list[int] = []
 
             def fake_run_job(job_id):
                 with started_lock:
-                    started_threads.append(threading.current_thread().name)
-                    if len(started_threads) >= 2:
-                        two_started.set()
-                release.wait(timeout=2)
+                    started_job_ids.append(job_id)
+                    if job_id in first_job_ids:
+                        first_topic_started.set()
+                        if all(item in started_job_ids for item in first_job_ids):
+                            first_topic_all_started.set()
+                    else:
+                        second_topic_started.set()
+                if job_id in first_job_ids:
+                    release_first_topic.wait(timeout=2)
 
             service._run_job = fake_run_job
-            service.enqueue_topic(topic_id, "并行话题", ["dy", "wb", "bili", "zhihu"])
-            self.assertTrue(two_started.wait(timeout=1), "多平台任务未并行启动")
-            release.set()
-            self.assertGreaterEqual(len(set(started_threads)), 2)
+            first_job_ids.extend(service.enqueue_topic(topic_ids[0], "话题一", ["dy", "wb"]))
+            second_job_ids = service.enqueue_topic(topic_ids[1], "话题二", ["zhihu"])
+            self.assertTrue(first_topic_started.wait(timeout=1))
+            self.assertTrue(first_topic_all_started.wait(timeout=1), "同一话题的不同平台未并行启动")
+            self.assertFalse(second_topic_started.wait(timeout=0.2), "不同话题发生了重叠")
+            release_first_topic.set()
+            self.assertTrue(second_topic_started.wait(timeout=1), "后续话题未启动")
+            self.assertEqual(set(started_job_ids), set(first_job_ids + second_job_ids))
 
     def test_weibo_normalizer_keeps_self_rooted_first_level_comments(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -222,17 +222,20 @@ class CommentCrawlerService:
         self.database = database
         self.media_root = root.parent / "mediacrawler"
         self.output_root = root / "data" / "mediacrawler"
-        self._queues: dict[str, queue.Queue[int]] = {
-            platform: queue.Queue() for platform in PLATFORM_NAMES
-        }
+        # Each queue item is one topic's platform jobs. Topics run in FIFO order,
+        # while the independent per-platform profiles within a topic may run together.
+        self._queue: queue.Queue[list[int]] = queue.Queue()
         self._lock = threading.Lock()
-        self._workers: dict[str, threading.Thread] = {}
+        self._worker: threading.Thread | None = None
         self._active_processes: dict[int, subprocess.Popen[str]] = {}
         recovered_job_ids = self.database.recover_comment_jobs()
+        recovered_by_topic: dict[int, list[int]] = {}
         for job_id in recovered_job_ids:
             job = self.database.comment_job(job_id)
-            if job and str(job["platform"]) in self._queues:
-                self._queues[str(job["platform"])].put(job_id)
+            if job and str(job["platform"]) in PLATFORM_NAMES:
+                recovered_by_topic.setdefault(int(job["topic_id"]), []).append(job_id)
+        for job_ids in recovered_by_topic.values():
+            self._queue.put(job_ids)
         if recovered_job_ids:
             self._ensure_worker()
 
@@ -240,39 +243,43 @@ class CommentCrawlerService:
         allowed = [platform for platform in platforms if platform in PLATFORM_NAMES]
         job_ids = self.database.create_comment_jobs(topic_id, keyword.strip(), allowed)
         for job_id in job_ids:
-            job = self.database.comment_job(job_id)
-            platform = str(job["platform"]) if job else ""
-            self.database.append_comment_job_log(job_id, "任务已加入平台队列")
-            if platform in self._queues:
-                self._queues[platform].put(job_id)
-        self._ensure_worker()
+            self.database.append_comment_job_log(job_id, "任务已加入话题串行队列")
+        if job_ids:
+            self._queue.put(job_ids)
+            self._ensure_worker()
         return job_ids
 
     def _ensure_worker(self) -> None:
         with self._lock:
-            self._workers = {
-                platform: worker for platform, worker in self._workers.items() if worker.is_alive()
-            }
-            for platform in PLATFORM_NAMES:
-                if platform in self._workers:
-                    continue
-                worker = threading.Thread(
-                    target=self._work_loop,
-                    args=(platform,),
-                    daemon=True,
-                    name=f"mediacrawler-{platform}-worker",
-                )
-                worker.start()
-                self._workers[platform] = worker
+            if self._worker and self._worker.is_alive():
+                return
+            self._worker = threading.Thread(
+                target=self._work_loop,
+                daemon=True,
+                name="mediacrawler-serial-worker",
+            )
+            self._worker.start()
 
-    def _work_loop(self, platform: str) -> None:
-        job_queue = self._queues[platform]
+    def _work_loop(self) -> None:
         while True:
-            job_id = job_queue.get()
+            job_ids = self._queue.get()
             try:
-                self._run_job(job_id)
+                workers: list[threading.Thread] = []
+                for job_id in job_ids:
+                    job = self.database.comment_job(job_id)
+                    platform = str(job["platform"]) if job else "unknown"
+                    worker = threading.Thread(
+                        target=self._run_job,
+                        args=(job_id,),
+                        daemon=True,
+                        name=f"mediacrawler-{platform}-worker",
+                    )
+                    worker.start()
+                    workers.append(worker)
+                for worker in workers:
+                    worker.join()
             finally:
-                job_queue.task_done()
+                self._queue.task_done()
 
     def shutdown(self) -> None:
         with self._lock:

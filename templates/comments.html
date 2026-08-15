@@ -24,13 +24,13 @@
     <section class="comment-control">
       <div>
         <span class="section-number">00</span>
-        <div><h2>手动采集</h2><p>并行搜索设置中选定的平台；每个平台3篇帖子，每篇最多30条一级评论。</p></div>
+        <div><h2>手动采集</h2><p>同一话题并行搜索选定的平台，不同话题按队列依次执行；每个平台3篇帖子，每篇最多30条一级评论。</p></div>
       </div>
       <form method="post" action="{{ url_for('trigger_topic_comments', topic_id=topic.id) }}">
         <label><span>SEARCH KEYWORD</span><input name="keyword" value="{{ topic.canonical_title }}" required></label>
         <button type="submit" {% if active %}disabled{% endif %}>{{ '任务进行中…' if active else '开始采集：' ~ (selected_platform_names|join(' + ')) }}</button>
       </form>
-      <aside>程序会自动打开独立的 Chrome。登录、扫码或验证码请在该窗口手动完成；最长等待10分钟，页面会自动刷新任务状态。</aside>
+      <aside>程序会为当前话题的各平台打开专用 Chrome。登录、扫码或验证码请在对应窗口手动完成；最长等待10分钟，页面会自动刷新任务状态。</aside>
     </section>
 
     <section class="job-board">
