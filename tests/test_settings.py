@@ -10,6 +10,39 @@ from app.web import create_app
 
 
 class SettingsPageTests(unittest.TestCase):
+    def test_video_tts_settings_are_saved_and_rendered(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = Database(Path(temp_dir) / "video-tts-settings.db")
+            settings = SimpleNamespace(
+                root=Path(__file__).resolve().parents[1],
+                sources=(),
+                raw={"app": {}, "scoring": {}},
+                api_key="",
+                ai_base_url="https://api.example.com/v1",
+                ai_model="test-model",
+            )
+            client = create_app(settings, database, comment_service=object()).test_client()
+            response = client.post(
+                "/settings",
+                data={
+                    "form_action": "video_tts",
+                    "tts_api_url": "https://tts.example/v1/audio/speech",
+                    "tts_api_key": "tts-secret",
+                    "tts_model": "voice-model",
+                    "tts_voice": "nova",
+                    "gpt_sovits_url": "http://127.0.0.1:9880/tts",
+                    "gpt_sovits_ref_audio": "E:/voices/reference.wav",
+                    "gpt_sovits_prompt_text": "你好，这是参考音频。",
+                    "gpt_sovits_prompt_lang": "zh",
+                    "gpt_sovits_text_lang": "zh",
+                },
+                follow_redirects=True,
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("外部 TTS 与 GPT-SoVITS 设置已更新", response.data.decode("utf-8"))
+            self.assertEqual(database.get_video_tts_settings()["tts_model"], "voice-model")
+            self.assertEqual(database.get_video_tts_settings()["gpt_sovits_ref_audio"], "E:/voices/reference.wav")
+
     def test_home_comment_collection_opens_new_tab_and_uses_geometric_trend_symbols(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             database = Database(Path(temp_dir) / "home-ui.db")

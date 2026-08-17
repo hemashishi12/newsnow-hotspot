@@ -1,0 +1,59 @@
+<section class="history-video-panel" data-video-endpoint="{{ video_endpoint }}" data-video-history="{{ 'true' if video_history_mode else 'false' }}"{% if video_panel_hidden %} hidden{% endif %}>
+  {% if not video_history_mode %}<div class="history-video-heading">
+      <div><span>ARTICLE TO VIDEO</span><h3>生成口播视频</h3></div>
+      <p class="history-video-status" aria-live="polite">准备生成</p>
+    </div>{% endif %}
+  {% if video_history_mode %}<div class="history-video-history-list" data-video-history-list aria-live="polite"></div>{% endif %}
+  <form class="history-video-form">
+    <label class="history-video-script-field">
+      <span>口播稿</span>
+      <textarea name="script" rows="12" required>{{ video_script }}</textarea>
+      <small><b data-script-count>{{ video_script|length }}</b> 字</small>
+    </label>
+    <div class="history-video-options">
+      {% if video_show_title %}
+        <label class="history-video-title"><span>视频主题</span><input type="text" name="title" value="{{ video_title }}" placeholder="用于搜索匹配画面" maxlength="120" required></label>
+      {% endif %}
+      <label class="history-video-tts-provider"><span>配音引擎</span><select name="tts_provider">
+        <option value="moneyprinter"{% if video_defaults.get('tts_provider', 'moneyprinter') == 'moneyprinter' %} selected{% endif %}>MoneyPrinter 内置 TTS</option>
+        <option value="openai"{% if video_defaults.get('tts_provider', 'moneyprinter') == 'openai' %} selected{% endif %}>OpenAI 兼容 TTS API</option>
+        <option value="gpt_sovits"{% if video_defaults.get('tts_provider', 'moneyprinter') == 'gpt_sovits' %} selected{% endif %}>GPT-SoVITS</option>
+      </select></label>
+      <fieldset>
+        <legend>画面比例</legend>
+        <label><input type="radio" name="aspect" value="9:16"{% if video_defaults.get('aspect', '9:16') == '9:16' %} checked{% endif %}><span>竖屏 9:16</span></label>
+        <label><input type="radio" name="aspect" value="16:9"{% if video_defaults.get('aspect', '9:16') == '16:9' %} checked{% endif %}><span>横屏 16:9</span></label>
+        <label><input type="radio" name="aspect" value="1:1"{% if video_defaults.get('aspect', '9:16') == '1:1' %} checked{% endif %}><span>方形 1:1</span></label>
+      </fieldset>
+      <label data-tts-moneyprinter><span>口播声音</span><select name="voice">
+        <option value="zh-CN-XiaoxiaoNeural-Female"{% if video_defaults.get('voice', 'zh-CN-XiaoxiaoNeural-Female') == 'zh-CN-XiaoxiaoNeural-Female' %} selected{% endif %}>晓晓 · 女声</option>
+        <option value="zh-CN-XiaoyiNeural-Female"{% if video_defaults.get('voice', 'zh-CN-XiaoxiaoNeural-Female') == 'zh-CN-XiaoyiNeural-Female' %} selected{% endif %}>晓伊 · 女声</option>
+        <option value="zh-CN-YunxiNeural-Male"{% if video_defaults.get('voice', 'zh-CN-XiaoxiaoNeural-Female') == 'zh-CN-YunxiNeural-Male' %} selected{% endif %}>云希 · 男声</option>
+        <option value="zh-CN-YunjianNeural-Male"{% if video_defaults.get('voice', 'zh-CN-XiaoxiaoNeural-Female') == 'zh-CN-YunjianNeural-Male' %} selected{% endif %}>云健 · 男声</option>
+      </select></label>
+      <label data-tts-external hidden><span>外部声音 ID</span><input type="text" name="tts_voice" value="{{ video_defaults.get('tts_voice', 'alloy') }}" maxlength="120" placeholder="例如 alloy、nova"></label>
+      <label><span>语速</span><input type="number" name="voice_rate" min="0.7" max="1.5" step="0.1" value="{{ video_defaults.get('voice_rate', 1.0) }}"></label>
+      <label><span>素材来源</span><select name="source">
+        <option value="pexels"{% if video_defaults.get('source', 'pexels') == 'pexels' %} selected{% endif %}>Pexels</option>
+        <option value="pixabay"{% if video_defaults.get('source', 'pexels') == 'pixabay' %} selected{% endif %}>Pixabay</option>
+        <option value="coverr"{% if video_defaults.get('source', 'pexels') == 'coverr' %} selected{% endif %}>Coverr</option>
+      </select></label>
+      <label class="history-video-terms"><span>素材关键词</span><input type="text" name="search_terms" value="{{ video_search_terms }}" maxlength="500"><small>多个关键词使用英文逗号分隔</small></label>
+      <label class="history-video-toggle"><input type="checkbox" name="subtitle_enabled"{% if video_defaults.get('subtitle_enabled', true) %} checked{% endif %}><span>烧录字幕</span></label>
+    </div>
+    <div class="history-video-submit">
+      <progress value="0" max="100" hidden></progress>
+      <button type="submit">生成口播视频</button>
+    </div>
+  </form>
+  {% if not video_history_mode %}<div class="history-video-result" hidden>
+      <video controls preload="metadata"></video>
+      <div class="history-video-result-actions">
+        <a data-video-download href="#">下载 MP4</a>
+        <button type="button" data-video-regenerate>重新生成</button>
+      </div>
+      <div class="history-video-credits" hidden><b>素材来源</b><ul></ul></div>
+    </div>{% endif %}
+  {% set initial_video_data = video_jobs if video_history_mode else video_job %}
+  <script type="application/json" class="history-video-initial">{{ initial_video_data|tojson }}</script>
+</section>

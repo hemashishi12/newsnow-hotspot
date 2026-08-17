@@ -1,4 +1,5 @@
 import json
+import io
 import sqlite3
 import tempfile
 import time
@@ -24,6 +25,82 @@ def make_settings(root: Path, api_key: str = "test-key") -> SimpleNamespace:
 
 
 class ArticleFeatureTests(unittest.TestCase):
+    def test_article_edit_is_saved_with_revision_and_conflict_protection(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = Database(root / "articles.db")
+            with database.connect() as connection:
+                cursor = connection.execute(
+                    "INSERT INTO topics(canonical_title,summary,first_seen_at,last_seen_at) VALUES (?,?,?,?)",
+                    ("编辑话题", "", "2026-08-15", "2026-08-15"),
+                )
+                topic_id = int(cursor.lastrowid)
+            article_id = database.save_generated_article(
+                topic_id, "提示词", "模型", "原标题\n\n原正文", {}
+            )
+            original = database.generated_article(article_id)
+            client = create_app(make_settings(root), database, comment_service=object()).test_client()
+
+            saved = client.put(
+                f"/api/articles/{article_id}",
+                json={"content": "新标题\n\n新正文", "updated_at": original["updated_at"]},
+            )
+            self.assertEqual(saved.status_code, 200)
+            self.assertTrue(saved.get_json()["saved"])
+            self.assertEqual(database.generated_article(article_id)["content"], "新标题\n\n新正文")
+            self.assertEqual(database.article_revisions(article_id)[0]["content"], "原标题\n\n原正文")
+
+            conflict = client.put(
+                f"/api/articles/{article_id}",
+                json={"content": "覆盖内容", "updated_at": original["updated_at"]},
+            )
+            self.assertEqual(conflict.status_code, 409)
+            self.assertEqual(database.generated_article(article_id)["content"], "新标题\n\n新正文")
+
+    def test_article_editor_rejects_empty_content_and_uploads_local_image(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = Database(root / "articles.db")
+            with database.connect() as connection:
+                cursor = connection.execute(
+                    "INSERT INTO topics(canonical_title,summary,first_seen_at,last_seen_at) VALUES (?,?,?,?)",
+                    ("图片话题", "", "2026-08-15", "2026-08-15"),
+                )
+                topic_id = int(cursor.lastrowid)
+            article_id = database.save_generated_article(topic_id, "提示词", "模型", "内容", {})
+            article = database.generated_article(article_id)
+            client = create_app(make_settings(root), database, comment_service=object()).test_client()
+            empty = client.put(
+                f"/api/articles/{article_id}",
+                json={"content": "   ", "updated_at": article["updated_at"]},
+            )
+            self.assertEqual(empty.status_code, 400)
+
+            uploaded = client.post(
+                "/api/article-images",
+                data={"file[]": (io.BytesIO(b"\x89PNG\r\n\x1a\nvalid"), "sample.png", "image/png")},
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(uploaded.status_code, 200)
+            image_url = next(iter(uploaded.get_json()["data"]["succMap"].values()))
+            self.assertTrue(image_url.startswith("/article-images/"))
+            image_response = client.get(image_url)
+            self.assertEqual(image_response.data, b"\x89PNG\r\n\x1a\nvalid")
+            image_response.close()
+
+    def test_article_history_loads_inline_vditor_and_realtime_save_controls(self):
+        template = (Path(__file__).resolve().parents[1] / "templates" / "articles.html").read_text(
+            encoding="utf-8"
+        )
+        script = (Path(__file__).resolve().parents[1] / "static" / "article-history-editor.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("history-edit-button", template)
+        self.assertIn("vendor/vditor/dist/index.min.js", template)
+        self.assertIn("SAVE_DELAY_MS = 800", script)
+        self.assertIn("mode: 'ir'", script)
+        self.assertIn("/api/article-images", script)
+
     def test_prompt_presets_are_saved_by_article_type_and_available_from_api(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             database = Database(Path(temp_dir) / "presets.db")
@@ -103,6 +180,61 @@ class ArticleFeatureTests(unittest.TestCase):
             while time.time() < deadline and database.article_job(job_id)["status"] not in {"success", "failed"}:
                 time.sleep(0.01)
             self.assertEqual(database.article_job(job_id)["status"], "success")
+
+    def test_background_article_can_enqueue_video_after_success(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = Database(Path(temp_dir) / "article-video-chain.db")
+            settings = make_settings(Path(__file__).resolve().parents[1])
+            with database.connect() as connection:
+                cursor = connection.execute(
+                    "INSERT INTO topics(canonical_title,summary,first_seen_at,last_seen_at) VALUES (?,?,?,?)",
+                    ("文章视频链路", "", "2026-08-09", "2026-08-09"),
+                )
+                topic_id = int(cursor.lastrowid)
+            video_calls = []
+
+            class FakeCommentService:
+                def enqueue_topic(self, *_args):
+                    return []
+
+            class FakeArticleService:
+                def generate(self, topic_id, article_type="standard", prompt_override=None):
+                    article_id = database.save_generated_article(
+                        topic_id,
+                        prompt_override or "默认",
+                        "test",
+                        "文章视频链路标题\n\n这是足够长的文章正文，用于验证生成文章后自动排队视频。",
+                        {},
+                        article_type,
+                    )
+                    return {"id": article_id, "topic_id": topic_id, "content": "文章正文", "article_type": article_type}
+
+            class FakeVideoService:
+                def enqueue_article_video(self, article_id):
+                    video_calls.append(article_id)
+                    return 101
+
+            client = create_app(
+                settings,
+                database,
+                comment_service=FakeCommentService(),
+                article_service=FakeArticleService(),
+                video_service=FakeVideoService(),
+            ).test_client()
+            response = client.post(
+                f"/api/topics/{topic_id}/article",
+                json={"background": True, "follow_up_video": True},
+            )
+            self.assertEqual(response.status_code, 202)
+            job_id = response.get_json()["job_id"]
+            deadline = time.time() + 2
+            while time.time() < deadline and database.article_job(job_id)["status"] not in {"success", "failed"}:
+                time.sleep(0.01)
+            job = database.article_job(job_id)
+            self.assertEqual(job["status"], "success")
+            self.assertEqual(job["follow_up_video"], 1)
+            self.assertIn("视频已排队", job["message"])
+            self.assertEqual(len(video_calls), 1)
 
     def test_custom_prompt_is_only_used_for_that_generation(self):
         with tempfile.TemporaryDirectory() as temp_dir:

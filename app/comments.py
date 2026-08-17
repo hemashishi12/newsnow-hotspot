@@ -51,6 +51,26 @@ def terminate_process_tree(process: Any) -> None:
         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
 
 
+def close_media_browser(media_root: Path, platform: str) -> None:
+    port = PLATFORM_CDP_PORTS.get(platform)
+    python_path = media_root / ".venv" / "Scripts" / "python.exe"
+    helper_path = Path(__file__).resolve().parent / "mediacrawler_runtime" / "close_cdp_browser.py"
+    if port is None or not python_path.exists():
+        return
+    creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    try:
+        subprocess.run(
+            [str(python_path), str(helper_path), str(port)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=15,
+            creationflags=creationflags,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
 def _as_int(value: Any) -> int:
     try:
         return int(value or 0)
@@ -95,7 +115,13 @@ def build_media_environment(
             "PYTHONIOENCODING": "utf-8",
             "PYTHONUNBUFFERED": "1",
             "MEDIACRAWLER_DIRECT_CONNECTION": "1",
+            "MEDIACRAWLER_SUPPRESS_IMAGE_VIEWER": "1",
         }
+    )
+    runtime_path = str(Path(__file__).resolve().parent / "mediacrawler_runtime")
+    existing_python_path = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = os.pathsep.join(
+        part for part in (runtime_path, existing_python_path) if part
     )
     if platform in PLATFORM_CDP_PORTS:
         env["MEDIACRAWLER_CDP_DEBUG_PORT"] = str(PLATFORM_CDP_PORTS[platform])
@@ -287,6 +313,13 @@ class CommentCrawlerService:
         for process in processes:
             terminate_process_tree(process)
 
+    def _append_job_log(self, job_id: int, message: str, level: str = "info") -> None:
+        try:
+            self.database.append_comment_job_log(job_id, message, level)
+        except Exception:
+            # Diagnostics must never abort a crawler or strand its browser profile.
+            pass
+
     def _run_job(self, job_id: int) -> None:
         job = self.database.comment_job(job_id)
         if not job:
@@ -295,12 +328,12 @@ class CommentCrawlerService:
         platform_name = PLATFORM_NAMES.get(platform, platform)
         output_path = (self.output_root / f"job-{job_id}").resolve()
         self.database.set_comment_job_status(job_id, "running")
-        self.database.append_comment_job_log(
+        self._append_job_log(
             job_id,
             f"开始采集{platform_name}：3篇帖子，每篇最多30条一级评论",
             "success",
         )
-        self.database.append_comment_job_log(
+        self._append_job_log(
             job_id,
             "程序会自动打开专用 Chrome；如需登录、扫码或验证码，请在浏览器中手动完成",
             "warning",
@@ -341,7 +374,7 @@ class CommentCrawlerService:
                             level = "error" if is_error else "info"
                             if is_error:
                                 error_lines.append(message)
-                            self.database.append_comment_job_log(job_id, message, level)
+                            self._append_job_log(job_id, message, level)
                 exit_code = process.wait()
                 with self._lock:
                     if self._active_processes.get(job_id) is process:
@@ -350,7 +383,7 @@ class CommentCrawlerService:
                     break
                 failure = crawler_failure_message(exit_code, error_lines)
                 if attempt == 1 and is_retryable_browser_failure(failure):
-                    self.database.append_comment_job_log(
+                    self._append_job_log(
                         job_id,
                         "检测到临时浏览器故障，将自动重试一次",
                         "warning",
@@ -369,13 +402,17 @@ class CommentCrawlerService:
                 post_count=len(posts),
                 comment_count=len(comments),
             )
-            self.database.append_comment_job_log(
+            self._append_job_log(
                 job_id, f"导入完成：{len(posts)} 篇帖子，{len(comments)} 条一级评论", "success"
             )
         except Exception as exc:
             self.database.set_comment_job_status(job_id, "failed", output_path=str(output_path), error=str(exc))
-            self.database.append_comment_job_log(job_id, f"任务失败：{exc}", "error")
+            self._append_job_log(job_id, f"任务失败：{exc}", "error")
         finally:
+            poll = getattr(process, "poll", None)
+            if callable(poll) and poll() is None:
+                terminate_process_tree(process)
+            close_media_browser(self.media_root, platform)
             with self._lock:
                 if self._active_processes.get(job_id) is locals().get("process"):
                     self._active_processes.pop(job_id, None)

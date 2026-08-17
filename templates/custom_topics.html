@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>自定话题 · 热榜雷达台</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="paper-noise"></div>
+  <header class="masthead compact custom-topic-masthead">
+    <div class="edition">OPEN WEB NEWS / CUSTOM TOPICS</div>
+    <nav class="subnav">
+      <a class="back-link" href="{{ url_for('index') }}">← 返回雷达台</a>
+      <div class="custom-topic-tools">
+        {% include '_article_notifications.html' %}
+        <a href="{{ url_for('custom_video_page') }}">自定视频 →</a>
+        <a href="{{ url_for('article_history') }}">写文历史 →</a>
+      </div>
+    </nav>
+    <p class="eyebrow">全网新闻检索</p>
+    <h1>自定话题</h1>
+    <p>输入关键词，从 Google News、Bing News 聚合新闻结果；可选配本机 SearXNG（环境变量 <code>SEARXNG_URL</code>）。</p>
+  </header>
+
+  <main class="custom-topic-main">
+    {% if error %}
+      <aside class="notice danger"><b>操作未完成</b><span>{{ error }}</span></aside>
+    {% endif %}
+
+    <section class="custom-search-panel">
+      <div class="section-head compact-head">
+        <span class="section-number">01</span>
+        <div><h2>搜索新闻</h2><p>搜索结果来自公开 RSS。</p></div>
+      </div>
+      <form method="post" class="custom-search-form">
+        <input type="hidden" name="action" value="search">
+        <input name="query" value="{{ search_data.query if search_data else '' }}" placeholder="例如：人工智能监管、某个品牌事件" required maxlength="100">
+        <button type="submit">搜索全网新闻</button>
+      </form>
+      {% if search_data and search_data.errors %}<p class="search-errors">部分来源不可用：{{ search_data.errors|join('；') }}</p>{% endif %}
+    </section>
+
+    {% if search_data %}
+      <form method="post" class="custom-results-form">
+        <input type="hidden" name="action" value="save">
+        <section class="custom-results">
+          <div class="section-head compact-head">
+            <span class="section-number">02</span>
+            <div><h2>选择相关新闻</h2><p>选中一条时沿用自定话题名称；选中多条时，每条新闻会保存为一个独立话题。</p></div>
+          </div>
+          <label class="custom-title-field">
+            <span>自定话题名称</span>
+            <input name="title" value="{{ search_data.query }}" maxlength="120" required>
+          </label>
+          <div class="custom-news-list">
+            {% for item in search_data.results %}
+              <label class="custom-news-item">
+                <input type="checkbox" name="news_json" value='{{ item|tojson|forceescape }}'>
+                <span>
+                  <span class="news-title-row"><b>{{ item.title }}</b>{% if item.published_date %}<time datetime="{{ item.published_at }}">{{ item.published_date }}</time>{% endif %}</span>
+                  <small>{{ item.source }} · {{ item.provider }}</small>
+                  {% if item.summary %}<em>{{ item.summary|striptags|truncate(180) }}</em>{% endif %}
+                </span>
+              </label>
+            {% else %}
+              <p class="notification-empty">未找到相关新闻，请换一个关键词。</p>
+            {% endfor %}
+          </div>
+          <button class="custom-save-button" type="submit">保存为自定话题并开始处理</button>
+        </section>
+      </form>
+    {% endif %}
+
+    <section class="custom-topic-list">
+      <div class="section-head compact-head">
+        <span class="section-number">03</span>
+        <div><h2>已保存话题</h2><p>保存后的话题复用评论采集、AI 写作和视频功能。</p></div>
+      </div>
+      <div class="article-batch-toolbar" data-article-batch hidden>
+        <strong>已选择 <span data-batch-count>0</span> 个话题</strong>
+        <button type="button" data-batch-article-type="standard" disabled>批量生成文章</button>
+        <button type="button" data-batch-article-type="long" disabled>批量生成长文</button>
+        <button type="button" data-batch-video disabled>批量生成视频</button>
+        <span data-batch-status aria-live="polite">勾选话题后可逐个提交写作任务。</span>
+      </div>
+      {% for topic in topics %}
+        <article class="custom-topic-card">
+          <div>
+            <span class="topic-label label-new">自定话题</span>
+            <h3>{{ topic.canonical_title }}</h3>
+            <p>{{ topic.news_count }} 条新闻 · {{ topic.comment_summary.comment_count }} 条评论</p>
+            <div class="custom-topic-news">
+              {% for item in topic.news[:4] %}<a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>{% endfor %}
+            </div>
+          </div>
+          <div class="comment-actions">
+            <label class="topic-select-control"><input type="checkbox" class="article-topic-select" data-topic-id="{{ topic.id }}" data-topic-title="{{ topic.canonical_title }}" aria-label="选择 {{ topic.canonical_title }}"></label>
+            <button type="button" class="article-generate-button" data-topic-id="{{ topic.id }}" data-topic-title="{{ topic.canonical_title }}" data-article-type="standard" data-label="✦ AI 写头条文章">✦ AI 写头条文章</button>
+            <button type="button" class="article-generate-button long-article-button" data-topic-id="{{ topic.id }}" data-topic-title="{{ topic.canonical_title }}" data-article-type="long">✦ AI 写深度长文</button>
+            <form method="post" action="{{ url_for('trigger_topic_comments', topic_id=topic.id) }}"><input type="hidden" name="keyword" value="{{ topic.canonical_title }}"><button type="submit">采集所选平台热评</button></form>
+            <a href="{{ url_for('topic_comments', topic_id=topic.id) }}">查看评论 →</a>
+          </div>
+        </article>
+      {% else %}
+        <p class="notification-empty">尚未保存自定话题。</p>
+      {% endfor %}
+      <div class="article-batch-toolbar" data-article-batch hidden>
+        <strong>已选择 <span data-batch-count>0</span> 个话题</strong>
+        <button type="button" data-batch-article-type="standard" disabled>批量生成文章</button>
+        <button type="button" data-batch-article-type="long" disabled>批量生成长文</button>
+        <button type="button" data-batch-video disabled>批量生成视频</button>
+        <span data-batch-status aria-live="polite">勾选话题后可逐个提交写作任务。</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='article-notifications.js') }}"></script>
+  <script src="{{ url_for('static', filename='article-actions.js') }}"></script>
+  <script src="{{ url_for('static', filename='article-batch-actions.js') }}"></script>
+</body>
+</html>

@@ -13,7 +13,7 @@
     <div class="edition">PUBLIC VOICE / MEDIACRAWLER SAMPLE</div>
     <div class="subnav">
       <a class="back-link" href="{{ url_for('index') }}">← 返回雷达台</a>
-      <a href="{{ url_for('logs_page') }}">运行日志 →</a>
+      <div class="custom-topic-tools">{% include '_article_notifications.html' %}<a href="{{ url_for('logs_page') }}">运行日志 →</a></div>
     </div>
     <p class="eyebrow">话题评论样本</p>
     <h1>{{ topic.canonical_title }}</h1>
@@ -86,5 +86,6 @@
     </section>
   </main>
   {% if active %}<script>setTimeout(() => location.reload(), 3000);</script>{% endif %}
+  <script src="{{ url_for('static', filename='article-notifications.js') }}"></script>
 </body>
 </html>

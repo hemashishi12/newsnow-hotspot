@@ -1,6 +1,7 @@
 import json
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -68,7 +69,30 @@ class CommentCrawlerTests(unittest.TestCase):
         self.assertEqual(env["NO_PROXY"], "*")
         self.assertEqual(env["no_proxy"], "*")
         self.assertEqual(env["MEDIACRAWLER_DIRECT_CONNECTION"], "1")
+        self.assertEqual(env["MEDIACRAWLER_SUPPRESS_IMAGE_VIEWER"], "1")
+        self.assertIn("mediacrawler_runtime", env["PYTHONPATH"])
         self.assertEqual(env["KEEP_ME"], "yes")
+
+    def test_database_connections_are_serialized_between_crawler_threads(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = Database(Path(temp_dir) / "serialized.db")
+            entered = threading.Event()
+            finished = threading.Event()
+
+            def open_second_connection():
+                entered.set()
+                with database.connect():
+                    pass
+                finished.set()
+
+            with database.connect():
+                worker = threading.Thread(target=open_second_connection)
+                worker.start()
+                self.assertTrue(entered.wait(timeout=1))
+                time.sleep(0.05)
+                self.assertFalse(finished.is_set())
+            worker.join(timeout=1)
+            self.assertTrue(finished.is_set())
 
     def test_comment_crawler_environment_assigns_a_fixed_port_per_platform(self):
         expected_ports = {"dy": "9222", "wb": "9223", "zhihu": "9224", "bili": "9225"}
@@ -121,6 +145,66 @@ class CommentCrawlerTests(unittest.TestCase):
             self.assertEqual(database.comment_job(job_id)["status"], "success")
             messages = [row["message"] for row in database.comment_job_logs(topic_id)]
             self.assertTrue(any("自动重试" in message for message in messages))
+
+    def test_log_write_failure_does_not_abort_a_successful_crawl(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = Database(root / "log-failure.db")
+            with database.connect() as connection:
+                cursor = connection.execute(
+                    "INSERT INTO topics(canonical_title,summary,first_seen_at,last_seen_at) VALUES (?,?,?,?)",
+                    ("日志竞争", "", "2026-08-15", "2026-08-15"),
+                )
+                topic_id = int(cursor.lastrowid)
+            service = CommentCrawlerService(root / "newsnow-hotspot", database)
+            job_id = database.create_comment_jobs(topic_id, "日志竞争", ["wb"])[0]
+            process = SimpleNamespace(
+                pid=2001,
+                stdout=iter(["crawler output\n"]),
+                wait=lambda: 0,
+                poll=lambda: 0,
+            )
+
+            with (
+                patch.object(comments_module.subprocess, "Popen", return_value=process),
+                patch.object(database, "append_comment_job_log", side_effect=RuntimeError("database is locked")),
+                patch.object(comments_module, "normalize_media_output", return_value=([{"post_id": "1"}], [])),
+                patch.object(database, "save_social_data"),
+                patch.object(comments_module, "close_media_browser") as close_browser,
+            ):
+                service._run_job(job_id)
+
+            self.assertEqual(database.comment_job(job_id)["status"], "success")
+            close_browser.assert_called_once_with(service.media_root, "wb")
+
+    def test_unexpected_crawler_error_terminates_the_process_tree(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            database = Database(root / "process-cleanup.db")
+            with database.connect() as connection:
+                cursor = connection.execute(
+                    "INSERT INTO topics(canonical_title,summary,first_seen_at,last_seen_at) VALUES (?,?,?,?)",
+                    ("异常清理", "", "2026-08-15", "2026-08-15"),
+                )
+                topic_id = int(cursor.lastrowid)
+            service = CommentCrawlerService(root / "newsnow-hotspot", database)
+            job_id = database.create_comment_jobs(topic_id, "异常清理", ["zhihu"])[0]
+
+            class BrokenOutput:
+                def __iter__(self):
+                    raise RuntimeError("output reader failed")
+
+            process = SimpleNamespace(pid=2002, stdout=BrokenOutput(), poll=lambda: None)
+            with (
+                patch.object(comments_module.subprocess, "Popen", return_value=process),
+                patch.object(comments_module, "terminate_process_tree") as terminate,
+                patch.object(comments_module, "close_media_browser") as close_browser,
+            ):
+                service._run_job(job_id)
+
+            terminate.assert_called_once_with(process)
+            close_browser.assert_called_once_with(service.media_root, "zhihu")
+            self.assertEqual(database.comment_job(job_id)["status"], "failed")
 
     def test_normalizer_caps_posts_and_first_level_comments(self):
         with tempfile.TemporaryDirectory() as temp_dir:

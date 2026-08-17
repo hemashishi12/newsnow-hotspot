@@ -33,6 +33,9 @@
         </button>
       </form>
       <a href="{{ url_for('raw_lists') }}">查看完整源榜单 →</a>
+      <a href="{{ url_for('custom_topics_page') }}">⌕ 自定话题</a>
+      <a href="{{ url_for('custom_video_page') }}">▣ 自定视频</a>
+      {% include '_article_notifications.html' %}
       <a class="history-link" href="{{ url_for('article_history') }}">✎ 写文历史</a>
       <a class="log-link" href="{{ url_for('logs_page') }}">● 运行日志</a>
       <a class="settings-link" href="{{ url_for('settings_page') }}">⚙ 分析设置</a>
@@ -58,10 +61,20 @@
         </div>
         <div class="section-count">{{ dashboard.topics|length }} TOPICS</div>
       </div>
+      <div class="article-batch-toolbar" data-article-batch hidden>
+        <strong>已选择 <span data-batch-count>0</span> 个话题</strong>
+        <button type="button" data-batch-article-type="standard" disabled>批量生成文章</button>
+        <button type="button" data-batch-article-type="long" disabled>批量生成长文</button>
+        <button type="button" data-batch-video disabled>批量生成视频</button>
+        <span data-batch-status aria-live="polite">勾选话题后可逐个提交写作任务。</span>
+      </div>
       <div class="topic-list">
         {% for topic in dashboard.topics %}
           <article class="topic-card" style="--delay: {{ loop.index0 * 35 }}ms">
-            <div class="topic-rank">{{ '%02d'|format(loop.index) }}</div>
+            <div class="topic-rank">
+              <span>{{ '%02d'|format(loop.index) }}</span>
+              <label class="topic-select-control"><input type="checkbox" class="article-topic-select" data-topic-id="{{ topic.topic_id }}" data-topic-title="{{ topic.title }}" aria-label="选择 {{ topic.title }}"></label>
+            </div>
             <div class="topic-copy">
               <div class="topic-labels">
                 {% for label in topic.labels %}<span class="topic-label label-{{ label.key }}">{{ label.name }}</span>{% endfor %}
@@ -118,6 +131,13 @@
         {% else %}
           <div class="empty-state"><span>∅</span><p>本轮尚无 AI 确认的跨平台同一事件</p></div>
         {% endfor %}
+      </div>
+      <div class="article-batch-toolbar" data-article-batch hidden>
+        <strong>已选择 <span data-batch-count>0</span> 个话题</strong>
+        <button type="button" data-batch-article-type="standard" disabled>批量生成文章</button>
+        <button type="button" data-batch-article-type="long" disabled>批量生成长文</button>
+        <button type="button" data-batch-video disabled>批量生成视频</button>
+        <span data-batch-status aria-live="polite">勾选话题后可逐个提交写作任务。</span>
       </div>
     </section>
   </main>
@@ -418,5 +438,7 @@
     */
   </script>
   <script src="{{ url_for('static', filename='article-actions.js') }}"></script>
+  <script src="{{ url_for('static', filename='article-batch-actions.js') }}"></script>
+  <script src="{{ url_for('static', filename='article-notifications.js') }}"></script>
 </body>
 </html>

@@ -24,6 +24,8 @@
       'prompt': '文章提示词已更新，下一次生成立即生效。',
       'long_prompt': '深度长文提示词已更新，下一次生成立即生效。',
       'ai': 'AI 连接已更新，下一次调用立即生效。',
+      'video': '本地视频引擎与素材平台设置已更新。',
+      'video_tts': '外部 TTS 与 GPT-SoVITS 设置已更新。',
       'web_search': 'AI 联网设置已更新，下一次文章生成立即生效。',
       'platforms': '平台选择将从下一轮分析开始生效。'
     } %}
@@ -124,9 +126,70 @@
       </form>
     </section>
 
+    <section class="settings-block video-engine-settings-block">
+      <div class="settings-heading">
+        <div><span class="section-number">05</span><h2>口播视频引擎</h2></div>
+        <p>MoneyPrinterTurbo 只监听本机地址。素材 Key 保存在本机 SQLite，生成任务不会把 Key 返回给网页。</p>
+      </div>
+      <form method="post" class="video-engine-form" autocomplete="off">
+        <input type="hidden" name="form_action" value="video_engine">
+        <label class="video-engine-url" for="video-engine-url">
+          <span>ENGINE URL</span>
+          <input id="video-engine-url" type="url" name="video_engine_url" value="{{ video_engine_settings.engine_url }}" required spellcheck="false">
+          <small id="video-engine-state">正在检测本地引擎…</small>
+        </label>
+        <label for="pexels-api-key">
+          <span>PEXELS API KEY</span>
+          <input id="pexels-api-key" type="password" name="pexels_api_key" value="{{ video_engine_settings.pexels_api_key }}" autocomplete="off">
+          <small><a href="https://www.pexels.com/api/" target="_blank" rel="noreferrer">申请 Pexels Key</a></small>
+        </label>
+        <label for="pixabay-api-key">
+          <span>PIXABAY API KEY</span>
+          <input id="pixabay-api-key" type="password" name="pixabay_api_key" value="{{ video_engine_settings.pixabay_api_key }}" autocomplete="off">
+          <small><a href="https://pixabay.com/api/docs/" target="_blank" rel="noreferrer">申请 Pixabay Key</a></small>
+        </label>
+        <label for="coverr-api-key">
+          <span>COVERR API KEY</span>
+          <input id="coverr-api-key" type="password" name="coverr_api_key" value="{{ video_engine_settings.coverr_api_key }}" autocomplete="off">
+          <small><a href="https://coverr.co/developers" target="_blank" rel="noreferrer">申请 Coverr Key</a></small>
+        </label>
+        <button type="submit">保存视频设置</button>
+      </form>
+    </section>
+
+    <section class="settings-block video-tts-settings-block">
+      <div class="settings-heading">
+        <div><span class="section-number">05A</span><h2>可选配音服务</h2></div>
+        <p>视频制作窗口可以逐条选择 MoneyPrinterTurbo 内置 TTS、OpenAI 兼容 TTS API 或 GPT-SoVITS。这里仅保存外部服务连接信息。</p>
+      </div>
+      <form method="post" class="video-tts-form" autocomplete="off">
+        <input type="hidden" name="form_action" value="video_tts">
+        <div class="video-tts-group">
+          <h3>OpenAI 兼容 TTS API</h3>
+          <label><span>API URL</span><input type="url" name="tts_api_url" value="{{ video_tts_settings.tts_api_url }}" placeholder="https://api.openai.com/v1/audio/speech"></label>
+          <label><span>API KEY</span><input type="password" name="tts_api_key" value="{{ video_tts_settings.tts_api_key }}" autocomplete="off"></label>
+          <label><span>MODEL</span><input type="text" name="tts_model" value="{{ video_tts_settings.tts_model }}" placeholder="gpt-4o-mini-tts"></label>
+          <label><span>DEFAULT VOICE</span><input type="text" name="tts_voice" value="{{ video_tts_settings.tts_voice }}" placeholder="alloy"></label>
+          <small>支持返回音频二进制的 OpenAI `/audio/speech` 兼容接口；API Key 可留空用于本机服务。</small>
+        </div>
+        <div class="video-tts-group">
+          <h3>GPT-SoVITS API</h3>
+          <label><span>API URL</span><input type="url" name="gpt_sovits_url" value="{{ video_tts_settings.gpt_sovits_url }}" placeholder="http://127.0.0.1:9880/tts"></label>
+          <label><span>REFERENCE AUDIO PATH</span><input type="text" name="gpt_sovits_ref_audio" value="{{ video_tts_settings.gpt_sovits_ref_audio }}" placeholder="GPT-SoVITS 可访问的参考音频路径"></label>
+          <label><span>PROMPT TEXT</span><input type="text" name="gpt_sovits_prompt_text" value="{{ video_tts_settings.gpt_sovits_prompt_text }}"></label>
+          <label><span>PROMPT / TEXT LANG</span><div class="video-tts-lang-fields"><input type="text" name="gpt_sovits_prompt_lang" value="{{ video_tts_settings.gpt_sovits_prompt_lang }}" placeholder="zh"><input type="text" name="gpt_sovits_text_lang" value="{{ video_tts_settings.gpt_sovits_text_lang }}" placeholder="zh"></div></label>
+          <small>参考音频路径必须是 GPT-SoVITS 服务进程能读取的路径；语速沿用视频制作窗口的语速设置。</small>
+        </div>
+        <div class="form-footer">
+          <span>每次视频生成时可单独切换配音引擎。</span>
+          <button type="submit">保存外部配音设置</button>
+        </div>
+      </form>
+    </section>
+
     <section class="settings-block article-prompt-block">
       <div class="settings-heading">
-        <div><span class="section-number">05</span><h2>爆款文章提示词</h2></div>
+        <div><span class="section-number">06</span><h2>爆款文章提示词</h2></div>
         <p>点击话题的“AI 写头条文章”时，系统会把这段提示词与该话题的新闻、帖子和热评一起发给当前 AI 模型。</p>
       </div>
       <form method="post" class="prompt-form">
@@ -142,7 +205,7 @@
 
     <section class="settings-block web-search-settings-block">
       <div class="settings-heading">
-        <div><span class="section-number">06</span><h2>AI 联网权限</h2></div>
+        <div><span class="section-number">07</span><h2>AI 联网权限</h2></div>
         <p>控制文章生成时是否允许 AI 使用联网搜索工具访问热榜链接。关闭后仅使用已采集的新闻、帖子和热评资料。</p>
       </div>
       <form method="post" class="toggle-form">
@@ -158,7 +221,7 @@
 
     <section class="settings-block article-prompt-block">
       <div class="settings-heading">
-        <div><span class="section-number">07</span><h2>深度长文提示词</h2></div>
+        <div><span class="section-number">08</span><h2>深度长文提示词</h2></div>
         <p>点击话题的“AI 写深度长文”时，系统会把这套独立提示词与同样的新闻、帖子和热评资料一起发给当前 AI 模型。</p>
       </div>
       <form method="post" class="prompt-form">
@@ -174,7 +237,7 @@
 
     <section class="settings-block weight-settings-block">
       <div class="settings-heading">
-        <div><span class="section-number">08</span><h2>总榜排序权重</h2></div>
+        <div><span class="section-number">09</span><h2>总榜排序权重</h2></div>
         <p>调整三项归一化指标在综合排序中的影响。可填写任意非负数，保存时会自动按合计值归一化，首页排序立即更新。</p>
       </div>
       <form method="post" class="weight-form" id="weight-form">
@@ -204,7 +267,7 @@
 
     <section class="settings-block formula-block">
       <div class="settings-heading">
-        <div><span class="section-number">09</span><h2>模块指标与总榜公式</h2></div>
+        <div><span class="section-number">10</span><h2>模块指标与总榜公式</h2></div>
         <p>页面只展示一张总榜，以下三类指标用于打标和合并排序。α={{ scoring.get('rank_exponent', 1.2) }}，历史窗口为最近 {{ recent_runs }} 次。</p>
       </div>
       <div class="formula-grid">
@@ -248,6 +311,15 @@
     };
     weightInputs.forEach(input => input.addEventListener('input', updateWeightPreview));
     updateWeightPreview();
+    fetch('/api/video-engine/status')
+      .then(response => response.json())
+      .then(status => {
+        const target = document.querySelector('#video-engine-state');
+        if (status.online) target.textContent = '本地引擎正在运行';
+        else if (status.installed) target.textContent = '引擎已安装，将在首次生成时自动启动';
+        else target.textContent = '尚未安装，请运行 setup-video-engine.ps1';
+      })
+      .catch(() => { document.querySelector('#video-engine-state').textContent = '无法检测本地引擎'; });
   </script>
 </body>
 </html>

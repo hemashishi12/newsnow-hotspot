@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>自定视频 · 热榜雷达台</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="paper-noise"></div>
+  <header class="masthead compact custom-video-masthead">
+    <div class="edition">CUSTOM VIDEO / LOCAL PRODUCTION</div>
+    <nav class="subnav">
+      <a class="back-link" href="{{ url_for('index') }}">← 返回雷达台</a>
+      <div class="custom-topic-tools">
+        {% include '_article_notifications.html' %}
+        <a href="{{ url_for('article_history') }}">写文历史 →</a>
+      </div>
+    </nav>
+    <p class="eyebrow">复用本机视频引擎</p>
+    <h1>自定视频</h1>
+    <p>输入一段口播文案，选择画面与声音参数，直接生成视频。成片会自动保存到写文历史。</p>
+  </header>
+
+  <main class="custom-video-main">
+    <article class="history-article custom-video-workbench" data-article-id="" data-video-endpoint="{{ url_for('api_create_custom_video') }}">
+      <div class="history-article-copy">
+        {% set video_endpoint = url_for('api_create_custom_video') %}
+        {% set video_search_terms = '' %}
+        {% set video_show_title = true %}
+        {% set video_panel_hidden = false %}
+        {% include '_video_form.html' %}
+      </div>
+    </article>
+  </main>
+
+  <script src="{{ url_for('static', filename='article-video.js') }}"></script>
+  <script src="{{ url_for('static', filename='article-notifications.js') }}"></script>
+</body>
+</html>

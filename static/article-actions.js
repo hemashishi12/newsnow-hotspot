@@ -15,11 +15,24 @@
   let currentTopicTitle = '';
   let currentArticleType = 'standard';
   let promptData = null;
-
-  const typeName = articleType => articleType === 'long' ? '深度长文' : '爆款文章';
   const articleUrl = (topicId, articleType) =>
     `/api/topics/${topicId}/article?article_type=${articleType}`;
 
+  if (!dialog) {
+    articleButtons.forEach(button => button.addEventListener('click', async () => {
+      const original = button.dataset.label || button.textContent;
+      button.disabled = true; button.textContent = '后台写作中…';
+      try {
+        const response = await fetch(`${articleUrl(button.dataset.topicId, button.dataset.articleType)}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({background: true})});
+        const data = await response.json(); if (!response.ok) throw new Error(data.error || '无法创建写作任务');
+        for (let i = 0; i < 900; i += 1) { await new Promise(resolve => setTimeout(resolve, 2000)); const status = await (await fetch(`/api/article-jobs/${data.job_id}`)).json(); if (status.status === 'success') { button.textContent = '✓ 写作完成'; button.classList.add('article-task-success'); return; } if (status.status === 'failed') throw new Error(status.error || '后台写作失败'); }
+        throw new Error('等待写作完成超时');
+      } catch (error) { button.textContent = '写作失败，点击重试'; button.title = error.message; button.classList.add('article-task-error'); button.disabled = false; }
+    }));
+    return;
+  }
+
+  const typeName = articleType => articleType === 'long' ? '深度长文' : '爆款文章';
   const setChoice = choice => {
     currentArticleType = choice.article_type;
     promptInput.value = choice.prompt;
