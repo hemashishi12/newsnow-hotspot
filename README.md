@@ -1,69 +1,57 @@
-# NewsNow 热榜雷达台
+<div align="center">
+  <img src="https://raw.githubusercontent.com/hemashishi12/newsnow-hotspot/main/static/favicon.svg" width="88" alt="NewsNow 热榜雷达台">
+  <h1>NewsNow 热榜雷达台</h1>
+  <p><strong>从热点发现，到文章和口播视频的一站式本地内容工作台</strong></p>
+  <p>跨平台热榜 → AI 事件聚类 → 热评研究 → 可编辑文章 → 串行视频成片</p>
+  <p>
+    <a href="https://github.com/hemashishi12/newsnow-hotspot/releases"><img src="https://img.shields.io/github/v/release/hemashishi12/newsnow-hotspot?label=release" alt="Release"></a>
+    <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white" alt="Python 3.12+"></a>
+    <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white" alt="Windows"></a>
+  </p>
+</div>
 
-> 本地优先的热点发现、AI 内容生产与口播视频工作台。
+NewsNow 热榜雷达台面向新闻研究、内容创作和短视频工作流：它持续采集 NewsNow 的多平台热榜，用 AI 将不同平台上的同一事件聚合成话题，再把话题、新闻来源和高赞评论交给文章与视频生产流程。所有任务、文章、修订和队列状态都保存在本机 SQLite 中。
 
-NewsNow 热榜雷达台把跨平台热榜采集、AI 事件聚类、热评研究、文章写作、Markdown 编辑和口播视频生成串成一条可追踪的内容生产链。它会持续采集 NewsNow 当前可用的 27 个完整榜单，用 AI 识别不同平台正在讨论的同一具体事件，再用“当前热度、快速升温、持续高热”三项透明指标生成综合总榜。
+## 界面预览
 
-从一个热点到一条可发布内容的完整路径：
+下面的截图使用项目当前版本的真实 Flask 模板、CSS、图表和交互组件；截图中的热点、文章、任务编号、进度和评论全部是虚拟样本数据，不代表真实事件，也不会连接用户的 AI、NewsNow、MediaCrawler、素材平台或视频引擎。
 
-```text
-27 个平台热榜 → AI 跨平台聚类 → 热点总榜与趋势
-                         ↓
-                  热评采集与研究
-                         ↓
-              AI 头条文章 / 深度长文
-                         ↓
-                编辑、修订与自动保存
-                         ↓
-           口播视频串行队列 → MP4 成片
-```
+![热点雷达：综合总榜、平台趋势图与任务通知](docs/screenshots/hotspot-dashboard.jpg)
 
-## 功能总览
+![写文历史：文章档案与虚拟文章样本](docs/screenshots/article-history.jpg)
 
-### 热点雷达
+![视频任务：写文历史中的串行视频任务与进度面板](docs/screenshots/video-queue.jpg)
 
-- 聚合今日头条、知乎、微博、抖音、百度、B 站、GitHub、Hacker News 等 27 个热榜源。
-- 用 AI 只判断“是否属于同一具体事件”，保留原始榜单和来源链接，不让模型改写排名。
-- 按平台权重计算综合热度，并分别展示多平台共振、快速升温、持续高热三个榜单。
-- 展示话题在不同平台的历史名次折线，自动处理反向坐标和双 Y 轴，便于比较趋势。
-- AI 分析失败时仍保存完整原始榜单，继续展示最近一次成功分析结果。
+## 能做什么
 
-### AI 写作与研究
+| 模块 | 能力 |
+| --- | --- |
+| 热点雷达 | 聚合 27 个热榜源，按多平台共振、快速升温、持续高热生成综合榜单，并查看历史名次趋势。 |
+| AI 写作 | 一键生成头条文章或深度长文；没有评论时可先采集热评，再自动继续写作。 |
+| 评论研究 | 通过 MediaCrawler 采集抖音、微博、B 站、知乎等平台的帖子和一级评论，按话题串行调度。 |
+| 自定义话题 | 用 Google News RSS、Bing 和可选的 SearXNG 搜索新闻，保存为独立话题继续处理。 |
+| 写文历史 | 使用本地 Vditor 编辑器原地修改文章，支持自动保存、修订记录、冲突检测、图片和导出。 |
+| 批量生产 | 批量生成文章或深度长文；“批量生成视频”会先生成标准文章，再自动排队生成视频。 |
+| 口播视频 | 基于 MoneyPrinterTurbo 生成 9:16、16:9 或 1:1 视频，支持素材来源、字幕、语速和多种配音方式。 |
+| 本地运行 | 定时采集、后台任务通知、SQLite 持久化、Windows 登录自启动和失败后恢复。 |
 
-- 一键生成“爆款文章”或“深度长文”；如果话题没有评论，会先采集高赞热评再开始写作。
-- 提示词工作台支持默认模板、自定义标签和独立的单篇文章提示词。
-- 所有写作、评论采集和视频任务都在后台运行，右上角通知中心显示阶段进度、成功和失败状态。
-- “写文历史”集中保存文章与视频，支持原地编辑、自动保存、版本冲突检测和修订回溯。
-- 内置 Vditor 编辑器，支持 Markdown 快捷输入、图片上传、表格、代码、链接、导出等常用能力。
+## 快速开始
 
-### 自定义话题与批量生产
+### 运行环境
 
-- 输入关键词搜索公开新闻，默认聚合 Google News RSS 与 Bing；可选接入本机 SearXNG。
-- 选择新闻后保存为独立话题，复用热评采集、AI 写作和视频生产流程。
-- 支持批量生成头条文章和深度长文，每个话题都是独立后台任务。
-- “批量生成视频”会自动先生成标准文章，文章完成后再把视频加入统一队列。
+- Windows 10/11、PowerShell 和 Git
+- Python Launcher `py`，主项目使用 Python 3.12
+- 一个兼容 OpenAI `/chat/completions` 的 AI 接口
 
-### 口播视频
-
-- 文章可直接生成口播视频，也支持在“自定视频”页面输入主题和文案独立制作。
-- 支持画面比例、语速、字幕、素材关键词和素材来源等参数，并可使用 Pexels、Pixabay 或 Coverr。
-- 支持 MoneyPrinterTurbo 内置 TTS、OpenAI 兼容 TTS API 和 GPT-SoVITS。
-- 所有视频任务按创建顺序串行执行，并写入 SQLite；服务重启后自动恢复未完成任务，避免多个视频同时改写本地引擎。
-- 任务完成后可在历史记录中预览、查看素材来源、下载 MP4；任务状态会持续显示在通知中心。
-
-### 本地运行与数据安全
-
-- Flask 网页界面默认运行在 `http://127.0.0.1:8765`，SQLite 保存榜单、文章、评论、修订和任务状态。
-- 支持定时采集、手动采集、仅采集不分析、重新执行 AI 分析和 Windows 登录后自动启动。
-- API Key 只保存在本机 `.env` 或 SQLite 设置中，不写入任务响应；本地数据和日志位于 `data/`。
-- 视频引擎按固定版本安装在项目相邻目录，首次使用时自动启动，便于隔离主项目环境。
-
-## 安装与配置
+### 安装主项目
 
 ```powershell
-Set-Location "E:\github\newsnow-hotspot"
+git clone https://github.com/hemashishi12/newsnow-hotspot.git
+Set-Location .\newsnow-hotspot
 .\setup.ps1
 ```
+
+`setup.ps1` 会创建 `.venv`、安装 `requirements.txt` 中的 Flask、APScheduler、httpx、PyYAML、Selenium 等依赖，并从 `.env.example` 创建本机 `.env`。
 
 编辑 `.env`：
 
@@ -73,106 +61,122 @@ AI_BASE_URL=https://api.openai.com/v1
 AI_MODEL=gpt-4.1-mini
 ```
 
-兼容提供 `/chat/completions` 的 OpenAI 格式接口。`config.yaml` 提供平台、平台权重、采集间隔和评分门槛的初始值；采集间隔可在网页设置中覆盖。支持通过 `ai.reasoning_effort` 设置兼容模型的推理强度；当前配置为 `high`。
-
-## 运行
+启动网页：
 
 ```powershell
-# 启动网页，并在进程存活期间每30分钟自动采集
+.\run.ps1 serve
+```
+
+打开 <http://127.0.0.1:8765>。服务启动后会按配置定时采集；关闭浏览器不会停止后台任务。
+
+## 按功能安装依赖
+
+不是所有功能都需要下载全部开源项目。主项目依赖由 `setup.ps1` 安装，其他组件按需安装。
+
+| 功能 | 需要的组件 | 安装方式 |
+| --- | --- | --- |
+| 热榜采集和榜单分析 | 本项目 Python 依赖、AI API | `setup.ps1` 自动安装；AI Key 写入本机 `.env`。 |
+| 文章编辑和趋势图 | Vditor、Chart.js | 已随仓库放在 `static/vendor/`，不依赖公共 CDN。 |
+| 热评采集 | [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) | 需要单独安装到项目相邻目录 `mediacrawler`，并按上游说明创建它自己的 `.venv`；还需要浏览器登录相关平台。 |
+| 口播视频 | [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | 运行 `.\setup-video-engine.ps1`，脚本会固定下载经过验证的版本、创建 Python 3.11 环境并安装依赖。 |
+| 视频素材 | Pexels、Pixabay 或 Coverr API | 在“分析设置”中填写对应 Key，每次生成选择一个素材来源。 |
+| 外部配音 | OpenAI 兼容 TTS 或 GPT-SoVITS | 可选；需要用户自己运行或提供对应接口。 |
+| 更多新闻搜索 | SearXNG | 可选；在本机运行后，在 `.env` 配置 `SEARXNG_URL`。 |
+
+### 安装评论采集
+
+评论采集不是主项目的内置依赖。当前服务默认在项目旁边查找以下结构：
+
+```text
+parent-folder/
+├─ newsnow-hotspot/
+└─ mediacrawler/
+   ├─ main.py
+   └─ .venv/
+      └─ Scripts/python.exe
+```
+
+请先参考 [MediaCrawler 的安装说明](https://github.com/NanmiCoder/MediaCrawler)，再在 NewsNow 页面“分析设置”中选择需要采集的平台。平台登录态保存在 MediaCrawler 自己的本机目录中，不会提交到本仓库。
+
+### 安装视频引擎
+
+```powershell
+Set-Location .\newsnow-hotspot
+.\setup-video-engine.ps1
+```
+
+脚本会把 MoneyPrinterTurbo 安装在项目相邻目录，并在第一次生成视频时自动启动本机引擎。视频任务会进入 SQLite 队列，按创建顺序一次执行一个；服务重启后会恢复未完成任务，避免多个视频同时改写引擎配置。
+
+## 常用操作
+
+```powershell
+# 启动网页和定时采集
 .\run.ps1 serve
 
-# 手动采集一轮
+# 手动采集并执行 AI 分析
 .\run.ps1 collect
 
 # 只采集原始榜单，不调用 AI
 .\run.ps1 collect -NoAI
 
-# 为最近一次采集重新执行 AI 分析
+# 对最近一次采集重新执行 AI 分析
 .\run.ps1 analyze
 ```
 
-浏览器打开 <http://127.0.0.1:8765>。关闭网页不会停止服务；只要服务进程仍在，程序会继续定时采集。启动时若距离上次采集已超过配置间隔，会立即补采一次；否则等待剩余时间。
+网页中的典型流程：
 
-注册 Windows 登录后自动在后台运行：
+1. 在热点雷达中选择话题，查看跨平台来源和趋势。
+2. 采集热评，或直接生成头条文章/深度长文。
+3. 在写文历史中编辑、修订、导出文章。
+4. 点击“生成视频”，选择画面比例、素材来源、字幕和配音。
+5. 在通知中心查看排队进度，在写文历史中预览或下载 MP4。
 
-```powershell
-.\install-autostart.ps1
-Start-ScheduledTask -TaskName "NewsNowHotspot"
-```
-
-后台日志保存在 `data/logs/`。如需取消自启动，可运行：
-
-```powershell
-Unregister-ScheduledTask -TaskName "NewsNowHotspot" -Confirm:$false
-```
-
-网页右上方的“分析设置”可以选择哪些已采集平台参与 AI 聚类、调整自动采集间隔，并调整三项归一化指标在综合总榜中的权重。设置保存在 SQLite 的 `app_settings` 表，不会重写 `config.yaml`；保存间隔后后台任务立即重新排期，保存权重后首页排序立即更新。
-
-首页顶部的“写文历史”可直接打开本机保存的全部文章。“AI 写头条文章”和“AI 写深度长文”点击后不再弹出结果窗口，而是立即创建后台任务；若话题尚无评论，任务会先采集所选平台热评，采集结束后再自动写作。点击两个写文按钮旁的“定制提示词”可打开提示词工作台：顶部固定显示不可删除的“爆款文章”和“深度长文”默认模板，之后显示全部自定义标签；本次编辑只作用于当前文章，不会覆盖设置页默认提示词。输入标签名可保存常用提示词，点击自定义标签右侧的“×”可删除。热榜采集完成时若提示词工作台正打开，首页会等到用户主动关闭弹窗后再刷新，避免正在编辑的内容丢失。
-
-首页的“自定话题”支持输入关键词搜索公开新闻。默认并行聚合 Google News RSS 与 Bing 公共搜索结果；如果本机运行了 SearXNG，可在 `.env` 设置 `SEARXNG_URL=http://127.0.0.1:8080` 追加更多新闻引擎。搜索结果默认不勾选，用户选择后保存；新闻发布时间会以醒目标识显示。只选择一条新闻时沿用自定话题名称；一次选择多条新闻时会为每条新闻创建一个独立话题，不再合并成一个话题。直接调用数据库的同名自定话题仍会自动合并并追加新新闻。热榜雷达和自定话题的已保存列表都支持勾选多个话题；批量工具栏只在至少勾选一个话题后显示，并同时出现在列表上下方。批量生成文章或深度长文时会逐个创建独立后台任务，每条任务分别出现在铃铛通知中；点击“批量生成视频”会先为所选话题生成标准文章，文章完成后自动创建对应视频任务。保存后的话题会进入本机 SQLite，并直接复用已有的热评采集、AI 写头条/深度长文和写文历史中的口播视频流程。SearXNG 是可选依赖，本项目不复制其源码；如需独立化外部开源项目，请放在 `E:\github` 下。
-
-首页“自定话题”后面的“自定视频”可直接打开视频制作页。输入视频主题和口播文案后，画面比例、声音、语速、素材来源、素材关键词和字幕等选项仍复用写文历史中的口播视频方案；任务完成后会与文章混合显示在写文历史中，并按生成时间倒序排列。自定视频条目默认折叠，展开后可预览、查看口播稿或下载成片。
-
-右上角的铃铛会在鼠标移入时显示所有运行中的写文任务及阶段进度。任务完成后会显示红色未读角标；查看通知并移出后，完成通知会标记为已读并消失，任务状态仍保存在 SQLite 中。
-
-写文历史展开文章后可点击“编辑”原地进入 [Vditor](https://github.com/Vanessa219/vditor) 即时渲染编辑器，不会弹出额外文本框。文章预览和编辑正文统一采用 Codex 深色阅读样式：Windows 系统界面字体栈、20px 字号、32px 行高、445 字重、`#181818` 背景与 `#dfdfdf` 文字。桌面端工具栏固定在正文左侧，窄屏自动切换为正文上方的横向滚动栏；支持撤销、重做、清除格式、格式刷、标题、粗体、引用、列表、对齐、删除线、代码、图片、链接、表情、表格、更多格式和导出，并支持 `# `、`> `、`- ` 等常见 Markdown 快捷输入。文章修改后约 800 毫秒自动保存，失焦和完成编辑时会立即补存；保存状态显示在操作按钮下方。为防止不同页面互相覆盖，保存接口带版本冲突检测，每次有效更新前的内容保存在 `article_revisions` 表中。
-
-编辑器图片支持 JPG、PNG、GIF 和 WebP，单张上限 10 MB，上传后保存在 `data/article-images/`，文章中记录本地相对地址。Vditor 3.11.3 的运行资源和 MIT 许可证已放在 `static/vendor/vditor/`，页面运行不依赖公共 CDN。
-
-写文历史中的文章还可直接生成口播视频。已有视频的文章会显示绿色“口播视频已生成”提示，右侧按钮变为“查看视频”；视频面板独立于文章正文展开，按最近生成时间倒序展示该文章的全部视频记录，最新视频默认展开，其余历史视频默认折叠，点击视频标题即可展开或收起，再次生成表单固定在列表下方。视频能力复用独立安装在相邻目录 `E:\github\MoneyPrinterTurbo` 的 [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo)：
-
-```powershell
-Set-Location "E:\github\newsnow-hotspot"
-.\setup-video-engine.ps1
-```
-
-安装脚本使用独立的 Python 3.11 虚拟环境，并默认固定到项目验证过的上游版本；传入 `-Update` 可更新到上游 `main` 最新版本。安装完成后，在“分析设置 > 口播视频引擎”中填写至少一个素材平台的 API Key。支持 MoneyPrinterTurbo 原生的 Pexels、Pixabay 和 Coverr，可在每次生成时单独选择，并不局限于 Pexels。保存视频设置时会自动关闭仍在使用旧配置的本机 MoneyPrinterTurbo，下一次生成会用新 Key 自动启动。请分别遵守所选平台的许可证、署名要求和 API 使用条款。
-
-分析设置中的“可选配音服务”支持配置 OpenAI 兼容的 `/audio/speech` 接口和 GPT-SoVITS `/tts` 接口。展开文章并点击“生成视频”后，可在“配音引擎”中逐条选择 MoneyPrinterTurbo 内置 TTS、OpenAI 兼容 TTS API 或 GPT-SoVITS；外部 TTS 先生成音频，再交给 MoneyPrinterTurbo 继续完成素材、字幕和视频合成。GPT-SoVITS 的参考音频路径必须是 GPT-SoVITS 服务进程可读取的路径。外部音频启用字幕时，程序会让本机视频引擎使用 Whisper 对齐；如果不需要字幕，可以关闭字幕开关。视频制作窗口会记住上一次使用的配音引擎、画面比例、声音、语速、素材来源和字幕开关；素材关键词仍按文章话题自动生成。初始口播稿和提交生成的视频脚本会自动移除中英文引号，避免字幕生成失败；`《》` 等书名号会保留。任务在后台持久化运行，刷新或关闭页面后不会丢失；再次打开写文历史即可查看进度、预览或下载 MP4，并查看素材作者和来源链接。MoneyPrinterTurbo 仅允许配置为本机 HTTP 地址，默认监听 `127.0.0.1:8080`，首次生成时由主服务自动启动。素材平台 Key 和 TTS API Key 只保存在本机 SQLite 中，不会出现在任务 API 响应里。
-
-自定视频和文章口播视频共用 `article_video_jobs` 任务表与后台引擎。所有视频任务会按创建顺序自动串行提交给 MoneyPrinterTurbo，服务重启后会从 SQLite 恢复未完成任务，避免多个任务同时重启或改写本地视频引擎配置。视频任务的排队、启动、生成中、完成和失败状态会出现在右上角铃铛通知中；完成通知在鼠标移出通知面板后标记为已读。
-
-设置页的“爆款文章提示词”和“深度长文提示词”仍分别保存当前生效版本，同时每次保存都会向 SQLite 的 `article_prompt_history` 表追加一份完整快照；旧版本不会被覆盖或删除，目前不提供历史查询界面。
-
-当文章生成前需要采集热评时，采集与写作会创建独立的后台任务并保存到 SQLite。即使关闭文章弹窗或浏览器标签页，后台仍会在热评采集完成后自动生成文章；重新点击该话题或访问“写文历史”即可查看结果。
-
-热评采集按话题使用串行队列：同一话题所选的不同平台仍会并行采集，并分别复用 MediaCrawler 按平台保存的登录态；同时点击多个话题时，后续话题会等前一话题的全部平台完成后再启动，避免不同话题的浏览器任务交错导致登录态加载错乱或重复登录窗口。AI 写作任务会在对应话题的热评任务结束后自动继续。
-
-每个平台采集结束后会自动关闭对应的专用 Chrome；采集异常时也会强制清理子进程，避免浏览器占用登录 profile。知乎等平台需要扫码时直接在 Chrome 登录页操作，不再额外打开系统 PNG 图片查看器。
-
-首页每个话题都显示最近分析窗口内各平台的榜单名次折线。各平台名次接近时共享同一反向 Y 轴；典型名次相差至少 10 位且达到约 3 倍时自动使用左右双轴，避免低位平台的变化被压平。
-
-## 数据与算法
-
-- SQLite：`data/hotspots.db`
-- 每次完整响应：`source_results.response_json`
-- 每条新闻：`news_items`
-- AI 聚类话题：`topics`、`topic_observations`、`topic_members`
-- 当前写作提示词：`app_settings`；每次保存的提示词快照：`article_prompt_history`
-- 本地编辑修订：`article_revisions`；编辑器图片：`data/article-images/`
-- 口播视频任务（文章与自定视频）：`article_video_jobs`；视频与外部 TTS 音频缓存：相邻 `MoneyPrinterTurbo/storage/tasks/`、`MoneyPrinterTurbo/storage/external-tts/`
-
-AI 只判断标题是否属于同一具体事件，并把本轮事件与近期话题关联。程序会验证 AI 返回的新闻 ID、平台数和重复项，模型不能修改原始排名。
-
-若某轮 AI 接口超时或失败，27个平台的原始榜单仍正常入库；主页会继续展示最近一次成功分析，并明确提示分析轮次滞后，不会把三个模块清空。
-
-当前热度：
+批量生成视频的顺序固定为：
 
 ```text
-Σ(平台权重 × 归一化站内名次分)
+选中多个话题 → 逐个生成标准文章 → 文章完成 → 加入视频队列 → 逐个生成 MP4
 ```
 
-快速升温：
+## 配置说明
 
-```text
-当前平台数 × 近10次当前热度的正向线性斜率 × 运行数 × (1 + 加权站内名次改善)
-```
+### AI 接口
 
-持续高热：
+AI 配置从 `.env` 读取，也可以在网页设置中调整。项目兼容提供 `/chat/completions` 的 OpenAI 格式接口；文章生成会把话题新闻、来源链接、帖子和热评作为引用资料发送给模型。
 
-```text
-近10次当前热度之和，且话题至少覆盖设定比例的采集次数
-```
+### 热榜和评分
 
-局限：NewsNow 返回的是各站热榜，不是事实核验结果；跨平台出现也不能代替可靠信源核实。
+`config.yaml` 保存 27 个来源、平台权重、采集间隔和评分门槛。网页设置可以覆盖分析平台、采集间隔和三项榜单权重。原始榜单会先写入 SQLite；即使 AI 请求失败，原始数据仍然保留。
+
+### 视频与配音
+
+- 视频比例：9:16、16:9、1:1。
+- 素材来源：Pexels、Pixabay、Coverr。
+- 配音方式：MoneyPrinterTurbo 内置 TTS、OpenAI 兼容 TTS、GPT-SoVITS。
+- 外部配音可以生成音频后交给 MoneyPrinterTurbo 继续完成素材、字幕和合成。
+- API Key 只保存在本机 `.env` 或 SQLite 设置中，不会出现在任务 API 响应里。
+
+## 数据、隐私与日志
+
+- 本项目默认只监听 `127.0.0.1`，不提供公共账号系统。
+- `.env`、`.venv`、`data/`、日志和生成文件都被 `.gitignore` 排除，不应提交到 Git。
+- SQLite 数据库位于 `data/hotspots.db`，包含热榜、文章、评论、修订和任务状态。
+- 文章图片保存在 `data/article-images/`；视频和外部配音缓存位于相邻 MoneyPrinterTurbo 的 `storage/`。
+- 后台日志位于 `data/logs/`。需要 Windows 登录后运行时，可执行 `install-autostart.ps1`。
+
+## 注意事项
+
+- NewsNow 提供的是各站热榜，不是事实核验结果；跨平台热度不能替代可靠信源。
+- 社交平台评论采集可能需要扫码登录，并受平台规则、频率限制和账号状态影响。
+- Pexels、Pixabay、Coverr 的素材使用必须遵守各自的许可证、署名和 API 条款。
+- 视频生成需要额外的 CPU/GPU、磁盘空间和网络时间，首次安装或首次使用可能下载较多依赖和模型。
+
+## 相关项目
+
+- [NewsNow](https://github.com/ourongxing/newsnow)：热榜数据来源。
+- [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler)：社交平台帖子和评论采集。
+- [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo)：本地口播视频合成引擎。
+- [Vditor](https://github.com/Vanessa219/vditor)：本地 Markdown 编辑器资源。
+
+## License
+
+本项目当前未附统一的项目许可证。仓库内的 Vditor、Chart.js 及其他第三方组件保留各自许可证；使用或再发布前请阅读对应许可证文件和上游项目条款。
