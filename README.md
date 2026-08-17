@@ -18,9 +18,9 @@ NewsNow 热榜雷达台面向新闻研究、内容创作和短视频工作流：
 
 ![热点雷达：综合总榜、平台趋势图与任务通知](docs/screenshots/hotspot-dashboard.jpg)
 
-![写文历史：文章档案与虚拟文章样本](docs/screenshots/article-history.jpg)
+![写文历史全页预览：文章档案与虚拟文章样本](docs/screenshots/article-history.jpg)
 
-![视频任务：写文历史中的串行视频任务与进度面板](docs/screenshots/video-queue.jpg)
+![视频任务全页预览：写文历史中的串行视频任务与进度面板](docs/screenshots/video-queue.jpg)
 
 ## 能做什么
 
