@@ -16,11 +16,13 @@ NewsNow 热榜雷达台面向新闻研究、内容创作和短视频工作流：
 
 下面的截图使用项目当前版本的真实 Flask 模板、CSS、图表和交互组件；截图中的热点、文章、任务编号、进度和评论全部是虚拟样本数据，不代表真实事件，也不会连接用户的 AI、NewsNow、MediaCrawler、素材平台或视频引擎。
 
-![热点雷达：综合总榜、平台趋势图与任务通知](docs/screenshots/hotspot-dashboard.jpg)
-
-![写文历史全页预览：文章档案与虚拟文章样本](docs/screenshots/article-history.jpg)
-
-![自定视频全页预览：真实视频生成工作台与虚拟生成状态](docs/screenshots/video-queue.jpg)
+<table>
+  <tr>
+    <td width="33%" valign="top"><img src="docs/screenshots/hotspot-dashboard.jpg" alt="热点雷达：综合总榜、平台趋势图与任务通知" width="100%"></td>
+    <td width="33%" valign="top"><img src="docs/screenshots/article-history.jpg" alt="写文历史电脑版视口与虚拟文章样本" width="100%"></td>
+    <td width="33%" valign="top"><img src="docs/screenshots/video-queue.jpg" alt="写文历史中展开的视频生成窗口" width="100%"></td>
+  </tr>
+</table>
 
 ## 能做什么
 
